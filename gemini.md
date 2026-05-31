@@ -96,3 +96,5 @@
 - **Logic Extraction**: If logic in a component exceeds 50 lines, suggest moving it to a `src/composables/` or `src/utils/` file.
 - **Route Lazy Loading**: When adding routes to `src/router/index.ts`, always use dynamic imports: `() => import('@/views/MyView.vue')`.
 - **Semantic Colors**: Prioritize generic semantic utility classes (e.g., `text-primary`, `bg-background`) over brand-specific ones.
+- **Anti-Gravity CLI (Local vs. Remote)**: When running locally on the user's machine, **never** automatically run linters, TS checks, formatters, etc. Instead, prompt the user to run the checks manually and respond with confirmation or errors. Note: this restriction does not apply when running on remote services like Jules.
+- **Token Optimization**: Give concise responses. Avoid filler and pleasantries. Output targeted code modifications (e.g., using diffs or search-and-replace blocks) rather than outputting entire file contents.
