@@ -1,0 +1,21 @@
+name: Publish {{PASCAL_PLUGIN_NAME}}
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version being published'
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: true
+
+jobs:
+  call-publish-workflow:
+    uses: ./.github/workflows/publish-plugin.yml
+    with:
+      version: ${{ inputs.version }}
+      plugin_name: '{{PLUGIN_NAME}}'
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

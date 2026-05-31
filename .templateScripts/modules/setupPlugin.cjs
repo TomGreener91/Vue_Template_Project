@@ -151,36 +151,24 @@ async function setupPlugin() {
   }
 
   // Dynamically generate the wrapper workflow for publishing this specific plugin
+  const wrapperTemplatePath = path.join(__dirname, '..', 'workflows', 'publish-wrapper.yml');
   const targetPublishWorkflow = path.join(rootWorkflowDestDir, `publish-${pluginName}.yml`);
-  if (!fs.existsSync(targetPublishWorkflow)) {
-    const wrapperContent = `name: Publish ${toPascalCase(pluginName)}
 
-on:
-  workflow_call:
-    inputs:
-      version:
-        description: 'The version being published'
-        required: true
-        type: string
-    secrets:
-      NPM_TOKEN:
-        required: true
+  if (fs.existsSync(wrapperTemplatePath) && !fs.existsSync(targetPublishWorkflow)) {
+    let wrapperContent = fs.readFileSync(wrapperTemplatePath, 'utf-8');
 
-jobs:
-  call-publish-workflow:
-    uses: ./.github/workflows/publish-plugin.yml
-    with:
-      version: \${{ inputs.version }}
-      plugin_name: '${pluginName}'
-    secrets:
-      NPM_TOKEN: \${{ secrets.NPM_TOKEN }}
-`;
+    wrapperContent = wrapperContent
+      .replace(/\{\{PLUGIN_NAME\}\}/g, pluginName)
+      .replace(/\{\{PASCAL_PLUGIN_NAME\}\}/g, toPascalCase(pluginName));
+
     if (IS_DEBUG) {
       console.log(`[DEBUG] Would write publish-${pluginName}.yml wrapper to ${targetPublishWorkflow}`);
     } else {
       fs.writeFileSync(targetPublishWorkflow, wrapperContent);
       console.log(`Generated wrapper workflow for publishing plugin: ${pluginName}`);
     }
+  } else if (!fs.existsSync(wrapperTemplatePath)) {
+    console.error(`Warning: Wrapper template not found at ${wrapperTemplatePath}`);
   } else {
     console.log(`Workflow publish-${pluginName}.yml already exists at root, skipping generation.`);
   }
