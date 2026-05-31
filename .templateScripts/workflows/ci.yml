@@ -21,17 +21,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
+    - name: Setup Node and Build Packages (Workspaces)
+      uses: ./.github/actions/setup-node-build
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-
-    - name: Install Dependencies
-      run: npm ci
-
-    - name: Build Packages (Workspaces)
-      run: npm run build --workspaces --if-present
+        build-command: 'npm run build --workspaces --if-present'
 
     - name: Lint Code
       run: npm run lint

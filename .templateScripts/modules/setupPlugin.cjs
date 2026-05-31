@@ -116,7 +116,7 @@ async function setupPlugin() {
 
   copyDirectoryRecursive(selectedTemplateDir, newPluginDir, replacements);
   
-  // Handle workflow copying
+  // Handle workflow copying for non-NPM plugins (e.g., Browser Extensions, Electron)
   const workflowSrcDir = path.join(newPluginDir, '.github', 'workflows');
   const rootWorkflowDestDir = path.join(projectRoot, '.github', 'workflows');
 
@@ -150,6 +150,41 @@ async function setupPlugin() {
       }
   }
 
+  // Dynamically generate the wrapper workflow for publishing this specific plugin
+  const targetPublishWorkflow = path.join(rootWorkflowDestDir, `publish-${pluginName}.yml`);
+  if (!fs.existsSync(targetPublishWorkflow)) {
+    const wrapperContent = `name: Publish ${toPascalCase(pluginName)}
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version being published'
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: true
+
+jobs:
+  call-publish-workflow:
+    uses: ./.github/workflows/publish-plugin.yml
+    with:
+      version: \${{ inputs.version }}
+      plugin_name: '${pluginName}'
+    secrets:
+      NPM_TOKEN: \${{ secrets.NPM_TOKEN }}
+`;
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would write publish-${pluginName}.yml wrapper to ${targetPublishWorkflow}`);
+    } else {
+      fs.writeFileSync(targetPublishWorkflow, wrapperContent);
+      console.log(`Generated wrapper workflow for publishing plugin: ${pluginName}`);
+    }
+  } else {
+    console.log(`Workflow publish-${pluginName}.yml already exists at root, skipping generation.`);
+  }
+
   // Ensure standard CI workflow is copied if setting up the first plugin
   const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
   const ciWorkflowDest = path.join(rootWorkflowDestDir, 'ci.yml');
@@ -158,15 +193,65 @@ async function setupPlugin() {
     if (IS_DEBUG) {
       console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
     } else {
-      // Ensure root workflow dir exists in case the template didn't have one
-      if (!fs.existsSync(rootWorkflowDestDir)) fs.mkdirSync(rootWorkflowDestDir, { recursive: true });
       fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
       console.log('Copied standard CI GitHub Actions workflow.');
     }
   }
 
-  // Copy standard release workflow and pass the pluginType
-  await setupReleaseWorkflow(pluginType);
+  // Ensure the reusable publish-plugin workflow is copied
+  const publishWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish-plugin.yml');
+  const publishWorkflowDest = path.join(rootWorkflowDestDir, 'publish-plugin.yml');
+  if (fs.existsSync(publishWorkflowSrc) && !fs.existsSync(publishWorkflowDest)) {
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would copy publish-plugin.yml to ${publishWorkflowDest}`);
+    } else {
+      fs.copyFileSync(publishWorkflowSrc, publishWorkflowDest);
+      console.log('Copied reusable publish-plugin workflow.');
+    }
+  }
+
+  // Ensure the composite action exists since publish-plugins uses it
+  const actionsDestDir = path.join(projectRoot, '.github', 'actions', 'setup-node-build');
+  if (!fs.existsSync(actionsDestDir)) {
+    if (!IS_DEBUG) fs.mkdirSync(actionsDestDir, { recursive: true });
+  }
+
+  const actionSrc = path.join(__dirname, '..', 'workflows', 'actions', 'setup-node-build', 'action.yml');
+  const actionDest = path.join(actionsDestDir, 'action.yml');
+  if (fs.existsSync(actionSrc) && !fs.existsSync(actionDest)) {
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would copy action.yml to ${actionDest}`);
+    } else {
+      fs.copyFileSync(actionSrc, actionDest);
+      console.log('Copied setup-node-build composite action.');
+    }
+  }
+
+  // Copy standard release workflow and pass the pluginName to link the wrapper correctly
+  await setupReleaseWorkflow(pluginName);
+
+  console.log('');
+  const deployDocs = await selectOption(
+    'Do you want to deploy documentation to GitHub Pages when publishing this plugin?',
+    [
+      { label: 'Yes', value: 'y' },
+      { label: 'No', value: 'n' },
+    ],
+  );
+
+  if (deployDocs === 'y') {
+    const docsWorkflowSrc = path.join(__dirname, '..', 'workflows', 'deploy-docs.yml');
+    const docsWorkflowDest = path.join(rootWorkflowDestDir, 'deploy-docs.yml');
+
+    if (fs.existsSync(docsWorkflowSrc) && !fs.existsSync(docsWorkflowDest)) {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would copy deploy-docs.yml to ${docsWorkflowDest}`);
+      } else {
+        fs.copyFileSync(docsWorkflowSrc, docsWorkflowDest);
+        console.log('Copied deploy-docs standalone workflow.');
+      }
+    }
+  }
 
   console.log(`Plugin "${pluginName}" created at plugins/${pluginName}`);
 

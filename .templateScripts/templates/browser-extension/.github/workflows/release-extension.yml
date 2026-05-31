@@ -21,17 +21,10 @@ jobs:
         with:
           ref: v${{ inputs.version }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node and Build Extension
+        uses: ./.github/actions/setup-node-build
         with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Extension
-        run: npm run build
+          build-command: 'npm run build'
 
       - name: Package Extension
         run: |

@@ -170,7 +170,7 @@ function updateRootPackageScripts(newScripts) {
   }
 }
 
-async function setupReleaseWorkflow(pluginType) {
+async function setupReleaseWorkflow(pluginName) {
   const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
   if (!fs.existsSync(workflowDestDir)) {
     if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
@@ -179,11 +179,20 @@ async function setupReleaseWorkflow(pluginType) {
   const releaseWorkflowSrc = path.join(templateScriptsDir, 'workflows', 'release.yml');
   const releaseWorkflowDest = path.join(workflowDestDir, 'release.yml');
 
-  if (fs.existsSync(releaseWorkflowSrc)) {
+  // If a pluginName is provided, we might be setting up a secondary release logic,
+  // or overwriting the root release.yml. In a monorepo, a unified release.yml is often used.
+  // We'll update the placeholder if it exists.
+  let content = '';
+  if (fs.existsSync(releaseWorkflowDest)) {
+     content = fs.readFileSync(releaseWorkflowDest, 'utf-8');
+  } else if (fs.existsSync(releaseWorkflowSrc)) {
+     content = fs.readFileSync(releaseWorkflowSrc, 'utf-8');
+  }
+
+  if (content) {
     console.log('');
     const githubRepo = await askQuestion('Enter your GitHub Repository path (owner/repo) for release protection [optional]: ');
     
-    let content = fs.readFileSync(releaseWorkflowSrc, 'utf-8');
     if (githubRepo && githubRepo.trim()) {
       content = content.replace('your-repo-owner/your-repo-name', githubRepo.trim());
       console.log(`Configuring release.yml to run on ${githubRepo.trim()}`);
@@ -191,13 +200,19 @@ async function setupReleaseWorkflow(pluginType) {
       console.log('Skipping custom GitHub Repository configuration (leaving TODO).');
     }
 
-    // Replace the publish workflow placeholder if a pluginType is provided
-    if (pluginType) {
-      const targetWorkflowName = `publish-${pluginType}.yml`;
-      content = content.replace(
-        'uses: ./.github/workflows/publish-placeholder.yml',
-        `uses: ./.github/workflows/${targetWorkflowName}`
-      );
+    // Replace the publish workflow placeholder if a pluginName is provided
+    if (pluginName) {
+      const targetWorkflowName = `publish-${pluginName}.yml`;
+      if (content.includes('publish-placeholder.yml')) {
+          content = content.replace(
+            'uses: ./.github/workflows/publish-placeholder.yml',
+            `uses: ./.github/workflows/${targetWorkflowName}`
+          );
+      } else {
+          // If we already have a publish job, we'd need a more complex AST parse to append multiple.
+          // For this scaffold, replacing the placeholder supports the first plugin easily.
+          console.log(`Note: You may need to manually add ${targetWorkflowName} to your root release.yml if you have multiple plugins.`);
+      }
       console.log(`Linked release workflow to ${targetWorkflowName}`);
     }
 

@@ -24,17 +24,10 @@ jobs:
         with:
           ref: v${{ inputs.version }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node and Make Electron App
+        uses: ./.github/actions/setup-node-build
         with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build and Make Electron App
-        run: npm run electron:make
+          build-command: 'npm run electron:make'
 
       - name: Determine Release Type
         id: release_type

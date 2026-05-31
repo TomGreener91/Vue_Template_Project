@@ -32,17 +32,10 @@ jobs:
         with:
           ref: v${{ inputs.version }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Build Web App
+        uses: ./.github/actions/setup-node-build
         with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Web App
-        run: npm run build
+          build-command: 'npm run build'
 
       - name: Determine Deployment Environment
         id: deploy_env
