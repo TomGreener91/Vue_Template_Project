@@ -1,6 +1,8 @@
 name: Build and Release Electron App
 
 on:
+  pull_request:
+    branches: [ "master", "main", "dev", "development" ]
   workflow_call:
     inputs:
       version:
@@ -14,6 +16,8 @@ on:
 jobs:
   build-and-release:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -22,21 +26,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: v${{ inputs.version }}
+          ref: ${{ inputs.version && format('v{0}', inputs.version) || github.ref }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node and Make Electron App
+        uses: ./.github/actions/setup-node-build
         with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build and Make Electron App
-        run: npm run electron:make
+          build-command: 'npm run electron:make'
 
       - name: Determine Release Type
+        if: github.event_name != 'pull_request'
         id: release_type
         run: |
           if [[ "${{ inputs.version }}" =~ -dev ]]; then
@@ -48,6 +46,7 @@ jobs:
           fi
 
       - name: Upload Artifacts to Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}

@@ -1,11 +1,23 @@
 name: Deploy Web App
 
 on:
+  pull_request:
+    branches: [ "master", "main", "dev", "development" ]
   workflow_call:
     inputs:
       version:
         description: 'The version being deployed'
-        required: true
+        required: false
+        type: string
+      build_command:
+        description: 'The npm command to build the project'
+        required: false
+        default: 'npm run build'
+        type: string
+      dist_path:
+        description: 'The directory containing the built artifacts'
+        required: false
+        default: './dist'
         type: string
     secrets:
       NPM_TOKEN:
@@ -30,19 +42,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: v${{ inputs.version }}
+          ref: ${{ inputs.version && format('v{0}', inputs.version) || github.ref }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node and Build Web App
+        uses: ./.github/actions/setup-node-build
         with:
-          node-version: '22.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Web App
-        run: npm run build
+          build-command: ${{ inputs.build_command || 'npm run build' }}
 
       - name: Determine Deployment Environment
         id: deploy_env
@@ -65,14 +70,14 @@ jobs:
           static_site_generator: 'vite'
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: ${{ inputs.dist_path || './dist' }}
 
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          # The 'environment' input for deploy-pages is for the GitHub Environment name, not the URL.
-          # You would set up 'staging' and 'production' environments in your repo settings.
           environment: ${{ steps.deploy_env.outputs.env_name }}

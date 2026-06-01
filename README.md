@@ -1,17 +1,12 @@
 # Vue 3 + TypeScript + Vite + Plugins
 
-This template supports both standard application development and plugin development.
-
-## Project Structure
-
-- `src/`: Main application source code.
-- `plugins/`: Directory for developing plugins.
+This robust, highly-automated boilerplate supports standard application development, NPM plugin development, Electron app creation, and Browser Extension building. It comes fully equipped with a unified CI/CD pipeline powered by `semantic-release`.
 
 ## Setup Script
 
-This project includes a setup script to help you configure the environment for either Project Development or Plugin Development.
+This project strictly relies on a CLI setup script to intelligently scaffold your architecture, build your GitHub Actions, and dynamically wire up your workspace. 
 
-Run the setup script:
+Run the setup script to begin:
 
 ```sh
 node .templateScripts/setup.cjs
@@ -19,20 +14,18 @@ node .templateScripts/setup.cjs
 
 ### Options
 
-1. **Project Development**: Can remove example plugins and cleanup `main.ts`.
-2. **Plugin Development**: Scaffolds a new plugin in the `plugins/` directory and optionally adds it to `src/main.ts`.
+1. **Project Development**: Scaffolds a standard frontend web application, configuring CI/CD hosting deployments based on your cloud provider of choice.
+2. **Plugin Development**: Scaffolds a new plugin (Vue UI Component Library, Vue Plugin, Vite Plugin, or generic TS Utility). Automatically configures workspace logic and NPM publishing pipelines.
+3. **Electron App**: Scaffolds an Electron desktop application setup and links it to a desktop-specific release pipeline.
+4. **Browser Extension**: Scaffolds a Chrome/Firefox/Edge extension setup.
 
-## Plugin Development
+## Documentation Generation
 
-Plugins reside in the `plugins/` directory. Each plugin should be a folder containing at least:
-- `index.ts`: The entry point exporting a Vue `install` function.
-- `package.json`: Plugin metadata.
+During plugin development, the CLI will ask if you want to deploy documentation. If you opt-in:
+- The script dynamically injects an interactive **VitePress** documentation site into your new plugin's `docs/` folder.
+- It seamlessly updates your `publish_package.yml` CI pipeline to deploy your docs to GitHub Pages immediately following a successful NPM package release!
 
-The template is configured to alias `@plugins` to the `plugins/` directory.
-
-### Example Plugin
-
-See `plugins/example-plugin` for a reference implementation.
+Run `npm run docs:dev` inside your plugin folder to preview your site.
 
 ## Recommended IDE Setup
 

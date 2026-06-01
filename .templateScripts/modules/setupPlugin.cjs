@@ -14,6 +14,9 @@ const {
   setupReleaseWorkflow
 } = require('../utils.cjs');
 
+/**
+ * Updates the workspaces array in the root package.json to include the plugins directory.
+ */
 function updateWorkspaces() {
   const packageJsonPath = path.join(projectRoot, 'package.json');
   if (fs.existsSync(packageJsonPath)) {
@@ -42,6 +45,12 @@ function updateWorkspaces() {
   }
 }
 
+/**
+ * Automatically injects the new plugin into the main Vue application's main.ts file.
+ * @param {string} pluginName The package name of the plugin
+ * @param {string} importName The variable name to import the plugin as
+ * @param {boolean} defaultExport Whether the plugin uses a default export
+ */
 function addPluginToMainTs(pluginName, importName, defaultExport = true) {
   const mainTsPath = path.join(projectRoot, 'src', 'main.ts');
   if (!fs.existsSync(mainTsPath)) return;
@@ -70,6 +79,10 @@ function addPluginToMainTs(pluginName, importName, defaultExport = true) {
   }
 }
 
+/**
+ * Orchestrates the creation of a new plugin, components library, or utility package.
+ * Handles templating, workflows, and workspace injection.
+ */
 async function setupPlugin() {
   console.log('\nSetting up for Plugin Development...');
 
@@ -90,6 +103,15 @@ async function setupPlugin() {
   ]);
 
   let templateName = pluginType;
+
+  console.log('');
+  const deployDocs = await selectOption(
+    'Do you want to deploy documentation to GitHub Pages when publishing this plugin?',
+    [
+      { label: 'Yes', value: 'y' },
+      { label: 'No', value: 'n' },
+    ],
+  );
 
   const newPluginDir = path.join(pluginsDir, pluginName);
 
@@ -116,7 +138,36 @@ async function setupPlugin() {
 
   copyDirectoryRecursive(selectedTemplateDir, newPluginDir, replacements);
   
-  // Handle workflow copying
+  // Inject shared docs if the user wants them
+  if (deployDocs === 'y') {
+    const sharedDocsSrc = path.join(__dirname, '..', 'shared', 'docs');
+    const pluginDocsDest = path.join(newPluginDir, 'docs');
+    
+    if (fs.existsSync(sharedDocsSrc)) {
+      copyDirectoryRecursive(sharedDocsSrc, pluginDocsDest, replacements);
+      console.log('Injected shared VitePress documentation setup.');
+      
+      const pluginPkgPath = path.join(newPluginDir, 'package.json');
+      if (fs.existsSync(pluginPkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pluginPkgPath, 'utf-8'));
+          pkg.devDependencies = pkg.devDependencies || {};
+          pkg.devDependencies['vitepress'] = '^3.5.0';
+          
+          pkg.scripts = pkg.scripts || {};
+          pkg.scripts['docs:dev'] = 'vitepress dev docs';
+          pkg.scripts['docs:build'] = 'vitepress build docs';
+          
+          fs.writeFileSync(pluginPkgPath, JSON.stringify(pkg, null, 2));
+          console.log('Updated plugin package.json with VitePress scripts and dependencies.');
+        } catch (e) {
+          console.error('Failed to update plugin package.json for docs:', e.message);
+        }
+      }
+    }
+  }
+
+  // Handle workflow copying for non-NPM plugins (e.g., Browser Extensions, Electron)
   const workflowSrcDir = path.join(newPluginDir, '.github', 'workflows');
   const rootWorkflowDestDir = path.join(projectRoot, '.github', 'workflows');
 
@@ -131,11 +182,15 @@ async function setupPlugin() {
           const destFile = path.join(rootWorkflowDestDir, file);
           
           if (!fs.existsSync(destFile)) {
-              if (IS_DEBUG) {
-                  console.log(`[DEBUG] Would copy ${file} to ${destFile}`);
-              } else {
-                  fs.copyFileSync(srcFile, destFile);
-                  console.log(`Copied ${file} GitHub Actions workflow.`);
+              try {
+                  if (IS_DEBUG) {
+                      console.log(`[DEBUG] Would copy ${file} to ${destFile}`);
+                  } else {
+                      fs.copyFileSync(srcFile, destFile);
+                      console.log(`Copied ${file} GitHub Actions workflow.`);
+                  }
+              } catch (e) {
+                  console.error(`Failed to copy workflow ${file}:`, e.message);
               }
           } else {
               console.log(`Workflow ${file} already exists at root, skipping copy.`);
@@ -150,23 +205,64 @@ async function setupPlugin() {
       }
   }
 
+  // We now use publish_package.yml directly. `setupReleaseWorkflow` will link it.
+
   // Ensure standard CI workflow is copied if setting up the first plugin
   const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
   const ciWorkflowDest = path.join(rootWorkflowDestDir, 'ci.yml');
+
+  if (!fs.existsSync(rootWorkflowDestDir)) {
+    if (!IS_DEBUG) fs.mkdirSync(rootWorkflowDestDir, { recursive: true });
+  }
 
   if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
     if (IS_DEBUG) {
       console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
     } else {
-      // Ensure root workflow dir exists in case the template didn't have one
-      if (!fs.existsSync(rootWorkflowDestDir)) fs.mkdirSync(rootWorkflowDestDir, { recursive: true });
       fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
       console.log('Copied standard CI GitHub Actions workflow.');
     }
   }
 
-  // Copy standard release workflow and pass the pluginType
-  await setupReleaseWorkflow(pluginType);
+  // Ensure the publish_package workflow is copied for this plugin
+  const publishWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_package.yml');
+  const publishWorkflowDest = path.join(rootWorkflowDestDir, 'publish_package.yml');
+  if (fs.existsSync(publishWorkflowSrc)) {
+    try {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would configure publish_package.yml to ${publishWorkflowDest}`);
+      } else {
+        let publishContent = fs.readFileSync(publishWorkflowSrc, 'utf-8');
+        publishContent = publishContent.replace(/\{\{PLUGIN_NAME\}\}/g, pluginName);
+        publishContent = publishContent.replace(/\{\{DEPLOY_DOCS\}\}/g, deployDocs === 'y' ? 'true' : 'false');
+        fs.writeFileSync(publishWorkflowDest, publishContent);
+        console.log(`Copied and configured publish_package.yml workflow for ${pluginName}.`);
+      }
+    } catch (e) {
+      console.error('Failed to configure publish_package.yml:', e.message);
+    }
+  }
+
+  // Ensure all composite actions are copied to .github/actions
+  const actionsSrcDir = path.join(__dirname, '..', 'workflows', 'actions');
+  const actionsDestDir = path.join(projectRoot, '.github', 'actions');
+  if (fs.existsSync(actionsSrcDir)) {
+    try {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would copy composite actions from ${actionsSrcDir} to ${actionsDestDir}`);
+      } else {
+        copyDirectoryRecursive(actionsSrcDir, actionsDestDir, {});
+        console.log('Copied all composite actions to .github/actions.');
+      }
+    } catch (e) {
+      console.error('Failed to copy composite actions:', e.message);
+    }
+  }
+
+  // Copy standard release workflow and link it to publish_package.yml
+  await setupReleaseWorkflow('publish_package.yml');
+
+  // Removed separate deployDocs workflow copying in favor of consolidated publish_package.yml
 
   console.log(`Plugin "${pluginName}" created at plugins/${pluginName}`);
 

@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     # Skip CI on automated release commits to prevent infinite loops.
     # semantic-release pushes a 'chore(release): x.y.z [skip ci]' commit; this
     # provides an explicit, readable guard in addition to the [skip ci] convention.
@@ -21,17 +24,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
+    - name: Setup Node and Build Packages (Workspaces)
+      uses: ./.github/actions/setup-node-build
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-
-    - name: Install Dependencies
-      run: npm ci
-
-    - name: Build Packages (Workspaces)
-      run: npm run build --workspaces --if-present
+        build-command: 'npm run build'
 
     - name: Lint Code
       run: npm run lint
@@ -42,5 +39,52 @@ jobs:
     - name: Type Check
       run: npm run type-check
 
+    - name: Run Tests
+      run: npm run test --if-present
+
     - name: Build Root App
       run: npm run build
+
+    - name: NPM Health Check
+      if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
+      run: |
+        npm audit > audit.txt || true
+        npm outdated > outdated.txt || true
+
+    - name: Report Health to PR
+      if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const audit = fs.existsSync('audit.txt') ? fs.readFileSync('audit.txt', 'utf8') : 'No audit results.';
+          const outdated = fs.existsSync('outdated.txt') ? fs.readFileSync('outdated.txt', 'utf8') : 'No outdated results.';
+          
+          const truncate = (str, max) => str.length > max ? str.substring(0, max) + '\n... (truncated)' : str;
+          
+          const commentBody = `## 🏥 NPM Health Check Report
+          
+          <details>
+            <summary><strong>NPM Audit Results</strong></summary>
+            
+            \`\`\`text
+            ${truncate(audit, 30000)}
+            \`\`\`
+          </details>
+          
+          <details>
+            <summary><strong>NPM Outdated Packages</strong></summary>
+            
+            \`\`\`text
+            ${truncate(outdated, 30000)}
+            \`\`\`
+          </details>
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: commentBody
+          });
