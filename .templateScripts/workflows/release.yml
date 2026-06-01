@@ -11,6 +11,10 @@ on:
 jobs:
   release:
     name: Create Release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     runs-on: ubuntu-latest
     # Prevent this workflow from running on forks
     if: github.repository == 'your-repo-owner/your-repo-name' # TODO: Replace with your repo details
