@@ -10,6 +10,10 @@ const {
 
 const { askQuestion, selectOption } = require('../utils.cjs');
 
+/**
+ * Orchestrates the setup of a main web app project.
+ * Handles copying specific workflow files (CI, Deployment) depending on the selected hosting platform.
+ */
 async function setupProject() {
   console.log('\nSetting up for Project Development...');
 
@@ -60,11 +64,15 @@ async function setupProject() {
       const srcPath = path.join(hostingWorkflowsDir, wf.src);
       const destPath = path.join(workflowDestDir, wf.dest);
       if (fs.existsSync(srcPath)) {
-        if (IS_DEBUG) {
-          console.log(`[DEBUG] Would copy ${wf.src} to ${destPath}`);
-        } else {
-          fs.copyFileSync(srcPath, destPath);
-          console.log(`Copied ${hostingPlatform} workflow as ${wf.dest}`);
+        try {
+          if (IS_DEBUG) {
+            console.log(`[DEBUG] Would copy ${wf.src} to ${destPath}`);
+          } else {
+            fs.copyFileSync(srcPath, destPath);
+            console.log(`Copied ${hostingPlatform} workflow as ${wf.dest}`);
+          }
+        } catch (e) {
+          console.error(`Failed to copy workflow ${wf.src}:`, e.message);
         }
       }
     }
@@ -84,12 +92,32 @@ async function setupProject() {
   }
 
   // Copy standard release workflow
-  await setupReleaseWorkflow();
+  if (hostingPlatform !== 'none') {
+    await setupReleaseWorkflow('deploy-webapp.yml');
+  } else {
+    await setupReleaseWorkflow(); // Won't link to a publish job
+  }
 
   // Ensure root build script can handle workspaces, building workspaces FIRST
   updateRootPackageScripts({
     "build": "vue-tsc --noEmit && vite build"
   });
+
+  // Copy root README.md for the web app
+  const readmeSrc = path.join(templatesDir, 'web-app', 'README.md');
+  const readmeDest = path.join(projectRoot, 'README.md');
+  try {
+    if (fs.existsSync(readmeSrc)) {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would copy Web App README.md to ${readmeDest}`);
+      } else {
+        fs.copyFileSync(readmeSrc, readmeDest);
+        console.log('Copied Web App README.md to project root.');
+      }
+    }
+  } catch (e) {
+    console.error('Failed to copy Web App README.md:', e.message);
+  }
 
   console.log('Project setup complete.');
 }

@@ -1,63 +1,46 @@
 # Unified Release Process
 
-This project uses a "hub-and-spoke" model for releases, powered by `semantic-release` and GitHub Actions. This ensures a consistent and automated workflow for versioning and deploying all parts of the monorepo.
+This project uses a highly automated, sequential release pipeline powered by `semantic-release` and GitHub Actions. This ensures a consistent, secure, and fully hands-off workflow for versioning, publishing, and documenting every package.
 
 ## How It Works
 
-The process is divided into two distinct phases:
+The release process relies on a tightly coupled architecture using `workflow_call` rather than disconnected, tag-based triggers.
 
-1.  **The "Hub" (Versioning):** A central workflow creates a version number and Git tag.
-2.  **The "Spokes" (Deployment):** Separate, specialized workflows listen for those tags and handle the actual building and deployment for each application type.
+### 1. The Versioning Engine (`release.yml`)
 
----
+The primary orchestrator is `.github/workflows/release.yml`.
 
-### 1. The "Hub": Creating a Release Version
+- **Trigger:** Pushing commits or merging pull requests into `master`, `main`, `dev`, or `development`.
+- **Process:**
+  1. The workflow spins up and runs `semantic-release`.
+  2. `semantic-release` parses your commit history looking for [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat:`, `fix:`, `BREAKING CHANGE:`).
+  3. It calculates the correct next semantic version.
+  4. It bumps the `version` field in your `package.json`, generates a new `CHANGELOG.md` entry, creates a Git tag, and publishes a GitHub Release.
+  5. Finally, if a new release was created, it strictly passes the new version number to the deployment workflow.
 
--   **Trigger:** Pushing commits to `master`, `main`, `dev`, or `development`.
--   **Workflow:** `.templateScripts/workflows/release.yml` (This file is copied to `.github/workflows/` when you set up a project).
--   **Process:**
-    1.  The workflow runs `semantic-release` at the root of the monorepo.
-    2.  `semantic-release` analyzes all commit messages since the last release.
-    3.  Based on the commit messages (e.g., `feat:`, `fix:`, `BREAKING CHANGE:`), it determines the next version number.
-    4.  It updates the `version` in the root `package.json` and regenerates the `CHANGELOG.md`.
-    5.  It creates a Git tag (e.g., `v1.2.0` for a main branch, `v1.2.1-dev.0` for a dev branch) and a corresponding GitHub Release with the changelog notes.
-    6.  **Crucially, this workflow does not publish or deploy any code.** Its only job is to create the version tag.
+### 2. The Deployment Execution
 
----
+Once `semantic-release` finishes, `release.yml` triggers the secondary publish workflow natively configured for your project type (e.g., `publish_package.yml` for NPM plugins, or `release-electron.yml` for Electron apps).
 
-### 2. The "Spokes": Deploying from a Tag
+#### NPM Packages (`publish_package.yml`)
+- Runs a build of the workspace (`npm run build`).
+- **Dry Run:** On a Pull Request, it runs `npm publish --dry-run` to validate package integrity safely.
+- **Production Publish:** On a successful push to your main branches, it runs `npm publish --access public` using the `NPM_TOKEN` to push the package to the NPM registry.
 
--   **Trigger:** A new tag matching the pattern `v*` is pushed to the repository.
--   **Workflows:** The individual workflows within each template (e.g., `publish-plugins.yml`, `deploy-webapp.yml`).
--   **Process:**
-    1.  When the `release.yml` workflow successfully creates a new tag, it triggers all the specialized deployment workflows.
-    2.  Each workflow inspects the tag to determine the correct action.
+#### Application Deployments (`deploy-webapp.yml`, `release-electron.yml`, etc.)
+- Depending on the architecture scaffolded by the setup script, the pipeline will build and upload your compiled application (e.g., to Firebase, Azure, or as a GitHub Release binary artifact).
 
-#### NPM Packages (`vite-plugin`, `vue-plugin`, `component-library`, `utils-library`)
+### 3. The Documentation Stage (VitePress)
 
--   **Workflow:** `publish-*.yml`
--   **Logic:**
-    -   If the tag **does not** contain `-dev` (it's a full release), it will build and publish the package to the NPM registry under the `latest` tag.
-    -   If the tag **does** contain `-dev`, the workflow **stops and does nothing**. Dev versions of plugins are not published.
-
-#### Web App (`web-app`)
-
--   **Workflow:** `deploy-webapp.yml`
--   **Logic:**
-    -   If the tag is a full release, it deploys the application to the **production** environment.
-    -   If the tag is a pre-release (`-dev`), it deploys to the **staging** environment.
-    -   *(Note: You must configure the environments and URLs in your GitHub repository settings and the workflow file.)*
-
-#### Packaged Applications (`electron-app`, `browser-extension`)
-
--   **Workflows:** `release-electron.yml`, `release-extension.yml`
--   **Logic:**
-    -   Builds the application and packages it into the appropriate format (executables, zip file, etc.).
-    -   If the tag is a full release, it uploads the artifacts to the GitHub Release and marks it as the "Latest" release.
-    -   If the tag is a pre-release (`-dev`), it uploads the artifacts and marks it as a "Pre-release".
+If you elected to deploy documentation to GitHub Pages when scaffolding your plugin:
+- A `DEPLOY_DOCS` flag is permanently embedded in your `publish_package.yml`.
+- Immediately after your NPM publish succeeds, a composite action (`deploy-github-pages`) natively triggers within the same runner.
+- It builds your VitePress site (`npm run docs:build`) and securely pushes the artifacts to GitHub Pages without requiring separate orchestration.
 
 ---
 
 ## Your Role
 
-Your only responsibility is to **write meaningful commit messages** following the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). The automation will handle the rest.
+Because this system is completely automated and sequential, your only responsibility as a developer is to **write meaningful commit messages** following the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). 
+
+The automation will handle the versioning, changelogs, publishing, and documentation hosting entirely on its own!

@@ -15,10 +15,21 @@ const projectRoot = path.join(__dirname, '..');
 // Check for debug flag in command line arguments
 const IS_DEBUG = process.argv.includes('--debug');
 
+/**
+ * Prompts the user with a question and waits for input.
+ * @param {string} query The question to display
+ * @returns {Promise<string>} User's response
+ */
 function askQuestion(query) {
   return new Promise((resolve) => rl.question(query, resolve));
 }
 
+/**
+ * Prompts the user with a list of options using an interactive selector.
+ * @param {string} message The prompt message
+ * @param {Array<{label: string, value: string}>} options Array of options to select
+ * @returns {Promise<string>} The value of the selected option
+ */
 async function selectOption(message, options) {
   return new Promise((resolve) => {
     let selectedIndex = 0;
@@ -76,6 +87,11 @@ async function selectOption(message, options) {
   });
 }
 
+/**
+ * Extracts the base name from a package name, ignoring scopes.
+ * @param {string} str The full package name
+ * @returns {string} The base name
+ */
 function getBaseName(str) {
   // If scoped package (e.g. @scope/name), take only the 'name' part
   const parts = str.split('/');
@@ -84,6 +100,11 @@ function getBaseName(str) {
   return name.replace(/^@/, '');
 }
 
+/**
+ * Converts a string to PascalCase (e.g. my-plugin -> MyPlugin).
+ * @param {string} str Input string
+ * @returns {string} PascalCase string
+ */
 function toPascalCase(str) {
   const base = getBaseName(str);
   return base
@@ -93,11 +114,22 @@ function toPascalCase(str) {
     .join('');
 }
 
+/**
+ * Converts a string to camelCase (e.g. my-plugin -> myPlugin).
+ * @param {string} str Input string
+ * @returns {string} camelCase string
+ */
 function toCamelCase(str) {
   const pascal = toPascalCase(str);
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
+/**
+ * Recursively copies a directory, applying string replacements to file contents and specific filenames.
+ * @param {string} source Source directory path
+ * @param {string} target Target directory path
+ * @param {Record<string, string>} replacements Key-value pairs for string replacements
+ */
 function copyDirectoryRecursive(source, target, replacements) {
   if (!fs.existsSync(target)) {
     if (IS_DEBUG) {
@@ -141,6 +173,10 @@ function closeReadline() {
   rl.close();
 }
 
+/**
+ * Safely updates the scripts section of the root package.json file.
+ * @param {Record<string, string>} newScripts Scripts to merge or overwrite
+ */
 function updateRootPackageScripts(newScripts) {
   const packageJsonPath = path.join(projectRoot, 'package.json');
   if (fs.existsSync(packageJsonPath)) {
@@ -170,7 +206,11 @@ function updateRootPackageScripts(newScripts) {
   }
 }
 
-async function setupReleaseWorkflow(pluginName) {
+/**
+ * Copies and configures the standard release.yml workflow, optionally linking a targeted publish job.
+ * @param {string} [targetWorkflowName] The filename of the workflow to link to (e.g. publish_package.yml)
+ */
+async function setupReleaseWorkflow(targetWorkflowName) {
   const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
   if (!fs.existsSync(workflowDestDir)) {
     if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
@@ -190,28 +230,15 @@ async function setupReleaseWorkflow(pluginName) {
   }
 
   if (content) {
-    console.log('');
-    const githubRepo = await askQuestion('Enter your GitHub Repository path (owner/repo) for release protection [optional]: ');
-    
-    if (githubRepo && githubRepo.trim()) {
-      content = content.replace('your-repo-owner/your-repo-name', githubRepo.trim());
-      console.log(`Configuring release.yml to run on ${githubRepo.trim()}`);
-    } else {
-      console.log('Skipping custom GitHub Repository configuration (leaving TODO).');
-    }
-
-    // Replace the publish workflow placeholder if a pluginName is provided
-    if (pluginName) {
-      const targetWorkflowName = `publish-${pluginName}.yml`;
+    // Replace the publish workflow placeholder if a targetWorkflowName is provided
+    if (targetWorkflowName) {
       if (content.includes('publish-placeholder.yml')) {
           content = content.replace(
             'uses: ./.github/workflows/publish-placeholder.yml',
             `uses: ./.github/workflows/${targetWorkflowName}`
           );
       } else {
-          // If we already have a publish job, we'd need a more complex AST parse to append multiple.
-          // For this scaffold, replacing the placeholder supports the first plugin easily.
-          console.log(`Note: You may need to manually add ${targetWorkflowName} to your root release.yml if you have multiple plugins.`);
+          console.log(`Note: You may need to manually add ${targetWorkflowName} to your root release.yml if you have multiple setups.`);
       }
       console.log(`Linked release workflow to ${targetWorkflowName}`);
     }

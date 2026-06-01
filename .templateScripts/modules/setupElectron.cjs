@@ -9,6 +9,10 @@ const {
   setupReleaseWorkflow
 } = require('../utils.cjs');
 
+/**
+ * Orchestrates the setup of an Electron desktop application.
+ * Handles templates, scripts, and workflows specific to Electron releases.
+ */
 async function setupElectron() {
   console.log('\nSetting up for Electron App...');
   const electronTemplateDir = path.join(templatesDir, 'electron-app');
@@ -33,12 +37,12 @@ async function setupElectron() {
   }
 
   // Copy specialized release workflow
-  const releaseWorkflowSrc = path.join(electronTemplateDir, '.github', 'workflows', 'release-electron.yml');
-  const releaseWorkflowDest = path.join(workflowDestDir, 'release-electron.yml');
+  const releaseWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_electron.yml');
+  const releaseWorkflowDest = path.join(workflowDestDir, 'publish_electron.yml');
 
   if (fs.existsSync(releaseWorkflowSrc)) {
     if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy release-electron.yml to ${releaseWorkflowDest}`);
+      console.log(`[DEBUG] Would copy publish_electron.yml to ${releaseWorkflowDest}`);
     } else {
       fs.copyFileSync(releaseWorkflowSrc, releaseWorkflowDest);
       console.log('Copied Electron GitHub Actions workflow.');
@@ -50,16 +54,20 @@ async function setupElectron() {
   const ciWorkflowDest = path.join(workflowDestDir, 'ci.yml');
 
   if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-    } else {
-      fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-      console.log('Copied standard CI GitHub Actions workflow.');
+    try {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
+      } else {
+        fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
+        console.log('Copied standard CI GitHub Actions workflow.');
+      }
+    } catch (e) {
+      console.error('Failed to copy ci.yml:', e.message);
     }
   }
 
   // Copy standard release workflow
-  await setupReleaseWorkflow();
+  await setupReleaseWorkflow('publish_electron.yml');
 
   // Update package.json scripts
   updateRootPackageScripts({
@@ -91,6 +99,17 @@ async function setupElectron() {
       }
     } catch (e) {
       console.error('Failed to update package.json:', e.message);
+    }
+  }
+
+  const readmeSrc = path.join(electronTemplateDir, 'README.md');
+  const readmeDest = path.join(projectRoot, 'README.md');
+  if (fs.existsSync(readmeSrc)) {
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would copy Electron App README.md to ${readmeDest}`);
+    } else {
+      fs.copyFileSync(readmeSrc, readmeDest);
+      console.log('Copied Electron App README.md to project root.');
     }
   }
 }

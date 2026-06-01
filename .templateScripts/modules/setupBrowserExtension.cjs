@@ -9,6 +9,10 @@ const {
   setupReleaseWorkflow
 } = require('../utils.cjs');
 
+/**
+ * Orchestrates the setup of a Browser Extension project.
+ * Handles templates and workflows specific to browser extension releases.
+ */
 async function setupBrowserExtension() {
   console.log('\nSetting up for Browser Extension...');
   const extensionTemplateDir = path.join(templatesDir, 'browser-extension');
@@ -25,12 +29,12 @@ async function setupBrowserExtension() {
   }
 
   // Copy specialized release workflow
-  const releaseWorkflowSrc = path.join(extensionTemplateDir, '.github', 'workflows', 'release-extension.yml');
-  const releaseWorkflowDest = path.join(workflowDestDir, 'release-extension.yml');
+  const releaseWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_extension.yml');
+  const releaseWorkflowDest = path.join(workflowDestDir, 'publish_extension.yml');
 
   if (fs.existsSync(releaseWorkflowSrc)) {
     if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy release-extension.yml to ${releaseWorkflowDest}`);
+      console.log(`[DEBUG] Would copy publish_extension.yml to ${releaseWorkflowDest}`);
     } else {
       fs.copyFileSync(releaseWorkflowSrc, releaseWorkflowDest);
       console.log('Copied Browser Extension GitHub Actions workflow.');
@@ -42,23 +46,36 @@ async function setupBrowserExtension() {
   const ciWorkflowDest = path.join(workflowDestDir, 'ci.yml');
 
   if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-    } else {
-      fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-      console.log('Copied standard CI GitHub Actions workflow.');
+    try {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
+      } else {
+        fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
+        console.log('Copied standard CI GitHub Actions workflow.');
+      }
+    } catch (e) {
+      console.error('Failed to copy ci.yml:', e.message);
     }
   }
 
   // Copy standard release workflow
-  await setupReleaseWorkflow();
+  await setupReleaseWorkflow('publish_extension.yml');
 
-  // Ensure root build script can handle workspaces and standard builds
+  // Ensure root build script handles standard builds
   updateRootPackageScripts({
-    "build:app": "vue-tsc --noEmit && vite build",
-    "build:workspaces": "npm run build --workspaces --if-present",
-    "build": "npm run build:workspaces && npm run build:app"
+    "build": "vue-tsc --noEmit && vite build"
   });
+
+  const readmeSrc = path.join(extensionTemplateDir, 'README.md');
+  const readmeDest = path.join(projectRoot, 'README.md');
+  if (fs.existsSync(readmeSrc)) {
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would copy Browser Extension README.md to ${readmeDest}`);
+    } else {
+      fs.copyFileSync(readmeSrc, readmeDest);
+      console.log('Copied Browser Extension README.md to project root.');
+    }
+  }
 
   console.log('Browser Extension files copied.');
 }
