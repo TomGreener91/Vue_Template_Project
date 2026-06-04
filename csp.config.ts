@@ -6,7 +6,3 @@ export const cspPolicy = {
   "font-src": ["'self'", "data:"],
   "connect-src": ["'self'"],
 };
-
-export const cspString = Object.entries(cspPolicy)
-  .map(([key, values]) => `${key} ${values.join(" ")}`)
-  .join("; ");
