@@ -21,6 +21,7 @@
     "vue-router": "^5.0.7"
   },
   "devDependencies": {
+    "@daohuy34/vue-doctor": "^3.1.0",
     "@eslint/js": "^9.21.0",
     "@greener-games/vite-csp": "^1.0.0",
     "@semantic-release/changelog": "^6.0.3",

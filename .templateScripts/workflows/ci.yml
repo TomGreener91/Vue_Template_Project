@@ -45,6 +45,36 @@ jobs:
     - name: Build Root App
       run: npm run build
 
+    - name: Run Vue Doctor
+      run: npx vue-doctor report --json > vue-doctor-report.json || true
+      continue-on-error: true
+
+    - name: Report Vue Doctor to PR
+      if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('vue-doctor-report.json')) {
+            try {
+              const output = fs.readFileSync('vue-doctor-report.json', 'utf8');
+              const jsonStr = output.substring(output.indexOf('{'), output.lastIndexOf('}') + 1);
+              const results = JSON.parse(jsonStr);
+              const score = results.score ? results.score.overall : 'N/A';
+              const body = `## 🩺 Vue Doctor Report\n\n**Score:** ${score}\n\n<details><summary>Details</summary>\n\n\`\`\`json\n${JSON.stringify(results, null, 2).substring(0, 30000)}\n\`\`\`\n\n</details>`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } catch (e) {
+              console.log('Error parsing vue doctor output', e);
+            }
+          }
+
     - name: NPM Health Check
       if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
       run: |
