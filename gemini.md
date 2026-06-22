@@ -15,7 +15,8 @@
 - `src/components/base/`: Atomic/Base components (e.g., `BaseIcon.vue`, `BaseButton.vue`).
 - `src/views/`: Page-level components used by Vue Router.
 - `src/composables/`: Shared stateful logic (Composition Functions).
-- `src/stores/`: Pinia store definitions.
+- `src/stores/`: Pinia store definitions. Files must follow the `*.store.ts` naming convention.
+- `src/services/`: Services for external API calls and business logic. Files must follow the `*.service.ts` naming convention.
 - `src/router/`: Route definitions.
 - `src/types/`: Global TypeScript interfaces and types.
 - `src/utils/`: Pure helper functions (formatters, validators, loggers).
@@ -87,7 +88,7 @@
 
 ## Specific Instructions for Gemini
 - **Template Order**: Follow **template -> script -> style**.
-- **Naming & JSDoc**: Use intent-revealing names and include a one-line JSDoc header for all functions (e.g., `/** Fetches user profile and updates local state */`).
+- **Naming & JSDoc**: Use intent-revealing names and include a one-line JSDoc header for all functions. For files, strictly use `[name].store.ts` for stores and `[name].service.ts` for services.
 - **No Automatic Tests**: Do not generate test files unless specifically asked.
 - **Robust Error Handling**: Always include `try-catch` blocks with console logging and a UI feedback strategy (e.g., loading states) for async logic.
 - **Mobile-First**: Generate responsive layouts by default.

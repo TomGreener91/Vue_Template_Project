@@ -5,6 +5,8 @@ import checker from 'vite-plugin-checker';
 import path from 'path';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import csp from '@greener-games/vite-csp';
+import deterministicPort from '@greener-games/vite-deterministic-port';
+import screenSize from '@greener-games/vite-screen-size';
 
 export default defineConfig({
   plugins: [
@@ -31,6 +33,8 @@ export default defineConfig({
       stylelint: { lintCommand: 'stylelint "./**/*.{css,vue}"' },
     }),
     vueDevTools(),
+    deterministicPort(),
+    screenSize(),
   ],
   resolve: {
     alias: {

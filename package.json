@@ -7,13 +7,18 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint:eslint": "eslint .",
+    "lint:eslint:fix": "eslint . --fix",
     "lint:styles": "stylelint \"**/*.{css,vue}\"",
     "lint:styles:fix": "stylelint \"**/*.{css,vue}\" --fix",
-    "format": "prettier --write .",
+    "lint:prettier": "prettier --check .",
+    "lint:prettier:fix": "prettier --write .",
     "type-check": "vue-tsc --noEmit",
-    "release": "semantic-release"
+    "health": "node scripts/health-check.js",
+    "release": "semantic-release",
+    "check:audit": "npm audit",
+    "check:outdated": "npm outdated",
+    "check:all": "npm run check:audit && npm run check:outdated"
   },
   "dependencies": {
     "pinia": "^3.0.4",
@@ -23,6 +28,8 @@
   "devDependencies": {
     "@eslint/js": "^9.21.0",
     "@greener-games/vite-csp": "^1.0.0",
+    "@greener-games/vite-deterministic-port": "^1.0.0",
+    "@greener-games/vite-screen-size": "^1.0.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",

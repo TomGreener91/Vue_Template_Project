@@ -31,7 +31,7 @@ jobs:
         build-command: 'npm run build'
 
     - name: Lint Code
-      run: npm run lint
+      run: npm run lint:eslint
       
     - name: Lint Styles
       run: npm run lint:styles
@@ -48,8 +48,8 @@ jobs:
     - name: NPM Health Check
       if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
       run: |
-        npm audit > audit.txt || true
-        npm outdated > outdated.txt || true
+        npm run check:audit > audit.txt || true
+        npm run check:outdated > outdated.txt || true
 
     - name: Report Health to PR
       if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
