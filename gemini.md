@@ -71,6 +71,25 @@
     - **A11y**: Use `motion-safe:` variants and respect `prefers-reduced-motion`.
 - **Organization via Layers**: Wrap global CSS in `@layer components` or `@layer utilities`.
 
+- **Typography & Shared Utility Classes**: Centralize typography and shared UI classes in `src/assets/main.css` so look-and-feel changes are easy and consistent across the app. Recommended practices:
+  - Create semantic, reusable classes for headings and common text styles (for example: `.h1`, `.h2`, `.lead`, `.muted`) inside `@layer components` in `main.css` and use them throughout components instead of repeating utility stacks.
+  - Use Tailwind's `@apply` to compose utility classes into these shared classes. Example in `src/assets/main.css`:
+
+```css
+@layer components {
+  .h1 { @apply text-3xl md:text-4xl font-semibold leading-tight text-primary; }
+  .h2 { @apply text-2xl md:text-3xl font-medium leading-snug text-primary; }
+  .lead { @apply text-lg text-muted-600; }
+  .muted { @apply text-sm text-muted-500; }
+}
+```
+
+  - Prefer semantic names (e.g., `.heading-primary`, `.heading-secondary`, `.prose-lead`) when that better communicates intent. Keep names consistent across the project.
+  - Favor using these shared classes in templates (e.g., `<h1 class="h1">Title</h1>`) to keep components thin and make global branding updates trivial.
+  - Reserve component-level classes for layout-specific overrides only. If a visual pattern is reused, move it into `main.css` as a named class.
+
+- **Custom Utilities & @apply**: Encourage defining custom utilities and component classes using `@apply` rather than duplicating long utility lists in every component. This improves maintainability and keeps component templates readable. Keep each custom class focused and small—compose rather than duplicate.
+
 ### Error Handling & Logging
 - **Resilient Processes**: Wrap asynchronous requests and high-risk logic in `try-catch` blocks.
 - **Logging**: Use `console.error` or a dedicated logging utility for developer debugging.
@@ -97,5 +116,5 @@
 - **Logic Extraction**: If logic in a component exceeds 50 lines, suggest moving it to a `src/composables/` or `src/utils/` file.
 - **Route Lazy Loading**: When adding routes to `src/router/index.ts`, always use dynamic imports: `() => import('@/views/MyView.vue')`.
 - **Semantic Colors**: Prioritize generic semantic utility classes (e.g., `text-primary`, `bg-background`) over brand-specific ones.
-- **Anti-Gravity CLI (Local vs. Remote)**: When running locally on the user's machine, **never** automatically run linters, TS checks, formatters, etc. Instead, prompt the user to run the checks manually and respond with confirmation or errors. Note: this restriction does not apply when running on remote services like Jules.
-- **Token Optimization**: Give concise responses. Avoid filler and pleasantries. Output targeted code modifications (e.g., using diffs or search-and-replace blocks) rather than outputting entire file contents.
+- **Anti-Gravity CLI (Local vs. Remote)**: When running locally on the user's machine, **never** automatically run linters, TS checks, formatters, etc. Instead, prompt the user to run the checks manually.
+- **Token Optimization**: Give concise responses. Avoid filler and pleasantries. Output targeted code modifications (e.g., using diffs or search-and-replace blocks) rather than outputting entire files unless requested.
