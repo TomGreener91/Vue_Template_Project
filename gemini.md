@@ -72,27 +72,42 @@
 - **Organization via Layers**: Wrap global CSS in `@layer components` or `@layer utilities`.
 
 - **Typography & Shared Utility Classes**: Centralize typography and shared UI classes in `src/assets/main.css` so look-and-feel changes are easy and consistent across the app. Recommended practices:
-  - Create semantic, reusable classes for headings and common text styles (for example: `.h1`, `.h2`, `.lead`, `.muted`) inside `@layer components` in `main.css` and use them throughout components instead of repeating utility stacks.
-  - Use Tailwind's `@apply` to compose utility classes into these shared classes. Example in `src/assets/main.css`:
+  - Style standard HTML elements (e.g., `h1`, `h2`, `h3`) directly inside `@layer base` in `main.css` using `@apply`. This ensures consistent global typography without needing to add classes to every tag.
+  - Create semantic, reusable classes for common text styles that aren't tied to specific HTML elements (for example: `.lead`, `.muted`) inside `@layer components`.
+  - Example in `src/assets/main.css`:
 
 ```css
+@layer base {
+  h1 {
+    @apply text-brand-500 text-3xl leading-tight font-semibold md:text-4xl;
+  }
+  h2 {
+    @apply text-brand-500 text-2xl leading-snug font-medium md:text-3xl;
+  }
+  h3 {
+    @apply text-brand-500 text-xl leading-snug font-medium md:text-2xl;
+  }
+}
+
 @layer components {
-  .h1 { @apply text-3xl md:text-4xl font-semibold leading-tight text-primary; }
-  .h2 { @apply text-2xl md:text-3xl font-medium leading-snug text-primary; }
-  .lead { @apply text-lg text-muted-600; }
-  .muted { @apply text-sm text-muted-500; }
+  .lead {
+    @apply text-brand-700 text-lg opacity-80;
+  }
+  .muted {
+    @apply text-brand-700 text-sm opacity-60;
+  }
 }
 ```
 
-  - Prefer semantic names (e.g., `.heading-primary`, `.heading-secondary`, `.prose-lead`) when that better communicates intent. Keep names consistent across the project.
-  - Favor using these shared classes in templates (e.g., `<h1 class="h1">Title</h1>`) to keep components thin and make global branding updates trivial.
-  - Reserve component-level classes for layout-specific overrides only. If a visual pattern is reused, move it into `main.css` as a named class.
+- Prefer semantic names (e.g., `.heading-primary`, `.heading-secondary`, `.prose-lead`) when creating custom utility classes that better communicate intent. Keep names consistent across the project.
+- Because headings are styled globally via `@layer base`, you can simply use the raw tags in your templates (e.g., `<h1>Title</h1>`) to keep components thin and make global branding updates trivial.
+- Reserve component-level classes for layout-specific overrides only. If a visual pattern is reused, move it into `main.css` as a named class.
 
-- **Custom Utilities & @apply**: Encourage defining custom utilities and component classes using `@apply` rather than duplicating long utility lists in every component. This improves maintainability and keeps component templates readable. Keep each custom class focused and small—compose rather than duplicate.
+- **Custom Utilities & @apply**: Strongly encourage defining custom utilities and component classes using `@apply` in `src/assets/main.css` rather than duplicating long utility lists in every component. This improves maintainability, keeps component templates readable, and ensures visual consistency. Keep each custom class focused and small—compose rather than duplicate.
 
 ### Error Handling & Logging
 - **Resilient Processes**: Wrap asynchronous requests and high-risk logic in `try-catch` blocks.
-- **Logging**: Use `console.error` or a dedicated logging utility for developer debugging.
+- **Logging**: **Strictly avoid using random `console.log` statements.** Always use the custom flexible logging utility (`src/utils/logger.ts`) across the project. Import and use the pre-configured `logger` instance (e.g., `logger.info()`, `logger.error()`, `logger.debug()`) to ensure proper log levels are respected and messages are formatted consistently.
 - **User Feedback**: Never allow a silent failure. Always provide UI feedback (Toasts, error banners, or skeleton states) to inform the user of progress or issues.
 
 ## Task Management & Documentation

@@ -15,3 +15,27 @@
     --breakpoint-2xl: 1440px;
     --font-sans: ui-sans-serif, system-ui, "Segoe UI", roboto, "Helvetica Neue", arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
 }
+
+@layer base {
+    h1 {
+        @apply text-3xl md:text-4xl font-semibold leading-tight text-brand-500;
+    }
+
+    h2 {
+        @apply text-2xl md:text-3xl font-medium leading-snug text-brand-500;
+    }
+
+    h3 {
+        @apply text-xl md:text-2xl font-medium leading-snug text-brand-500;
+    }
+}
+
+@layer components {
+    .lead {
+        @apply text-lg text-brand-700 opacity-80;
+    }
+
+    .muted {
+        @apply text-sm text-brand-700 opacity-60;
+    }
+}
