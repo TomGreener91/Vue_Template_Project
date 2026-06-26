@@ -28,7 +28,7 @@ export default defineConfig({
       vueTsc: true,
       eslint: {
         useFlatConfig: true,
-        lintCommand: 'eslint --ext .ts,.tsx,.vue src'
+        lintCommand: 'eslint src'
       },
       stylelint: { lintCommand: 'stylelint "./**/*.{css,vue}"' },
     }),

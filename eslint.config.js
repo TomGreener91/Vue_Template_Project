@@ -23,6 +23,17 @@ export default [
   {
     rules: {
       'vue/no-v-html': 'off',
+      'vue/block-order': ['error', {
+        'order': ['template', 'script', 'style']
+      }],
+      'vue/component-api-style': ['error', ['script-setup', 'composition']],
+      'vue/define-macros-order': ['error', {
+        'order': ['defineProps', 'defineEmits']
+      }],
+      'vue/component-name-in-template-casing': ['error', 'PascalCase', {
+        'registeredComponentsOnly': false,
+        'ignores': []
+      }],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
