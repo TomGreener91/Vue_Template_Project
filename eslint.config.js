@@ -34,6 +34,13 @@ export default [
         'registeredComponentsOnly': false,
         'ignores': []
       }],
+      'vue/no-restricted-class': [
+        'warn',
+        '/^(m|p)[lr](-[a-z0-9]+)?$/',
+        '/^text-(left|right)$/',
+        '/^(border|rounded)-[lr](-[a-z0-9]+)?$/',
+        '/^(left|right)-/'
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

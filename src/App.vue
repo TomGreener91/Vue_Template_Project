@@ -15,7 +15,7 @@
             <span class="font-bold text-xl tracking-tight text-text-main">AntiGravity</span>
           </RouterLink>
 
-          <div class="hidden md:flex gap-4 ml-4">
+          <div class="hidden md:flex gap-4 ms-4">
             <RouterLink to="/" class="text-text-muted hover:text-primary font-medium transition-colors" active-class="text-primary">
               Home
             </RouterLink>

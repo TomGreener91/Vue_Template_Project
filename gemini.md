@@ -60,6 +60,7 @@
 - **Destructuring**: Always use `storeToRefs()` when destructuring state or getters to maintain reactivity.
 
 ### Styling (Tailwind CSS 4)
+- **RTL & Logical Properties**: Always use logical properties (`ms-`, `pe-`, `text-start`, `border-s`) instead of physical directions (`ml-`, `pr-`, `text-left`, `border-l`) to ensure native Right-to-Left (RTL) language support.
 - **CSS-First Configuration**: All theme configuration is handled in `src/assets/main.css` via the `@theme` block.
 - **Color Variable Hierarchy**:
     1. **Logical/Brand Colors**: Define specific brand identity colors (e.g., `--color-brand-green: #2ecc71;`).

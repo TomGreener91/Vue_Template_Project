@@ -14,7 +14,7 @@
         stroke-width="2" 
         stroke-linecap="round" 
         stroke-linejoin="round" 
-        class="mr-2 group-hover:-translate-x-1 transition-transform"
+        class="me-2 group-hover:-translate-x-1 transition-transform"
       >
         <path d="m15 18-6-6 6-6" />
       </svg>
