@@ -16,9 +16,12 @@
     "type-check": "vue-tsc --noEmit",
     "health": "node scripts/health-check.js",
     "release": "semantic-release",
-    "check:audit": "npm audit",
-    "check:outdated": "npm outdated",
-    "check:all": "npm run check:audit && npm run check:outdated"
+    "deps:audit": "npm audit",
+    "deps:outdated": "npm outdated",
+    "deps:all": "npm run deps:audit && npm run deps:outdated",
+    "deps:upgrade:minor": "npx npm-check-updates -u --target minor --peer && npm install",
+    "deps:upgrade:latest": "npx npm-check-updates -u --peer && npm install",
+    "deps:upgrade:interactive": "npx npm-check-updates -i --peer"
   },
   "dependencies": {
     "pinia": "^3.0.4",

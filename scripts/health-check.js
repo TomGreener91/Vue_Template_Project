@@ -62,7 +62,7 @@ const checks = [
     name: 'NPM Audit', 
     description: 'Scans project dependencies for known security vulnerabilities.',
     fixCommand: 'npm audit fix',
-    command: 'npm run check:audit', 
+    command: 'npm run deps:audit', 
     allowFail: true,
     parse: (stdout) => { const m = stdout.match(/(\d+)\s+vulnerabilities/i); return m ? parseInt(m[1], 10) : 0; }
   },
@@ -70,7 +70,7 @@ const checks = [
     name: 'NPM Outdated', 
     description: 'Checks for outdated NPM packages in the project.',
     fixCommand: 'npm update',
-    command: 'npm run check:outdated', 
+    command: 'npm run deps:outdated', 
     allowFail: true,
     parse: (stdout) => { const lines = stdout.trim().split('\n').filter(l => l.length > 0); return lines.length > 0 ? lines.length - 1 : 0; }
   },
