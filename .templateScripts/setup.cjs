@@ -10,6 +10,7 @@ const setupProject = require('./modules/setupProject.cjs');
 const setupPlugin = require('./modules/setupPlugin.cjs');
 const setupElectron = require('./modules/setupElectron.cjs');
 const setupBrowserExtension = require('./modules/setupBrowserExtension.cjs');
+const setupCapacitor = require('./modules/setupCapacitor.cjs');
 
 async function main() {
   console.log('Welcome to the Template Setup Script!\n');
@@ -19,6 +20,7 @@ async function main() {
     { label: 'Setup for Plugin Development', value: '2' },
     { label: 'Setup for Electron App', value: '3' },
     { label: 'Setup for Browser Extension', value: '4' },
+    { label: 'Setup for Capacitor App (Android/iOS)', value: '5' },
   ]);
 
   if (answer === '1') {
@@ -29,6 +31,8 @@ async function main() {
     await setupElectron();
   } else if (answer === '4') {
     await setupBrowserExtension();
+  } else if (answer === '5') {
+    await setupCapacitor();
   }
 
   // Ask to remove the template scripts directory
