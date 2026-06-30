@@ -15,19 +15,16 @@ if (!fs.existsSync(packageJsonPath)) {
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-// Calculate bundleId
-const ownerRaw = packageJson.author || packageJson.owner || "company";
-let ownerStr = '';
-if (typeof ownerRaw === 'string') {
-  ownerStr = ownerRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
-} else if (typeof ownerRaw === 'object' && ownerRaw.name) {
-  ownerStr = ownerRaw.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-} else {
-  ownerStr = "company";
+// Calculate bundleId from capacitor.config.ts
+let bundleId = "com.MyCompany.MyApp"; // Fallback
+const capacitorConfigPath = path.join(__dirname, '..', 'capacitor.config.ts');
+if (fs.existsSync(capacitorConfigPath)) {
+  const configContent = fs.readFileSync(capacitorConfigPath, 'utf-8');
+  const match = configContent.match(/appId:\\s*['"]([^'"]+)['"]/);
+  if (match && match[1]) {
+    bundleId = match[1];
+  }
 }
-
-const nameStr = (packageJson.name || "app").toString().toLowerCase().replace(/-/g, '_').replace(/[^a-z0-9_]/g, '');
-const bundleId = `com.${ownerStr}.${nameStr}`;
 
 // Calculate version
 const versionStr = (packageJson.version || "1.0").toString();

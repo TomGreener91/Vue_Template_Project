@@ -14,59 +14,60 @@ let gradleContent = fs.readFileSync(gradleFilePath, 'utf-8');
 const groovyFunctions = `
 import groovy.json.JsonSlurper
 
-// Automatically parses the App ID (com.[author].[name]) from package.json
-def getDynamicAppId() {
-    def packageJsonFile = file("../../package.json")
-    if (packageJsonFile.exists()) {
-        def packageJson = new JsonSlurper().parseText(packageJsonFile.text)
-        def ownerStr = (packageJson.author ?: packageJson.owner ?: "company").toString().toLowerCase().replaceAll("[^a-z0-9]", "")
-        def nameStr = (packageJson.name ?: "app").toString().toLowerCase().replaceAll("-", "_").replaceAll("[^a-z0-9_]", "")
-        return "com.\${ownerStr}.\${nameStr}"
+// 1. Safely extract App ID using Regex from TypeScript
+def getAppIdFromCapacitor() {
+    def configFile = file("../../capacitor.config.ts")
+    if (configFile.exists()) {
+        def matcher = configFile.text =~ /appId:\\s*['"]([^'"]+)['"]/
+        if (matcher.find()) {
+            return matcher.group(1)
+        }
     }
-    return "com.example.app"
+    // Fallback to match existing physical java folder structure
+    return "com.MyCompany.MyApp"
 }
 
-// Automatically pulls the "version" string from package.json
+// 2. Safely extract Version Number from package.json
 def getAppVersion() {
     def packageJsonFile = file("../../package.json")
     if (packageJsonFile.exists()) {
-        def packageJson = new JsonSlurper().parseText(packageJsonFile.text)
-        return (packageJson.version ?: "1.0").toString()
+        def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
+        return (packageJson.version ?: "1.0.0").toString()
     }
-    return "1.0"
+    return "1.0.0"
 }
 `;
 
-if (!gradleContent.includes('getDynamicAppId')) {
+if (!gradleContent.includes('getAppIdFromCapacitor')) {
   gradleContent = gradleContent.replace(
-    /apply plugin: 'com\.android\.application'/,
-    `apply plugin: 'com.android.application'\n${groovyFunctions}`
+    /apply plugin: 'com\\.android\\.application'/,
+    `apply plugin: 'com.android.application'\\n\${groovyFunctions}`
   );
 }
 
 // 2. Inject Dynamic Variables
-if (!gradleContent.includes('def dynamicAppId = getDynamicAppId()')) {
+if (!gradleContent.includes('def dynamicAppId = getAppIdFromCapacitor()')) {
   gradleContent = gradleContent.replace(
-    /android\s*\{/,
-    `android {\n    def dynamicAppId = getDynamicAppId()`
+    /android\\s*\\{/,
+    `android {\\n    def dynamicAppId = getAppIdFromCapacitor()`
   );
 }
 
 // Replace namespace
 gradleContent = gradleContent.replace(
-  /namespace\s+['"][^'"]+['"]/,
+  /namespace\\s+['"][^'"]+['"]/,
   `namespace dynamicAppId`
 );
 
 // Replace applicationId
 gradleContent = gradleContent.replace(
-  /applicationId\s+['"][^'"]+['"]/,
+  /applicationId\\s+['"][^'"]+['"]/,
   `applicationId dynamicAppId`
 );
 
 // Replace versionName
 gradleContent = gradleContent.replace(
-  /versionName\s+['"][^'"]+['"]/,
+  /versionName\\s+['"][^'"]+['"]/,
   `versionName getAppVersion()`
 );
 
