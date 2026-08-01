@@ -114,6 +114,8 @@
 ## Task Management & Documentation
 - **Checklist Format**: `[ ]` for pending, `[X]` for completed.
 - **Completion Summaries**: Provide a concise summary of the specific actions performed after marking a task as complete.
+- **README Updates**: **Must** keep the README up to date when making amendments (this README will either be at the root of the project, or in the case of plugins, will be in the plugins folder).
+- **Deployment and Commits**: Read the [Release Process documentation](./.supporting_docs/RELEASE_PROCESS.md) for rules regarding git commit tags/prefixes (e.g., `feat`, `fix`, `docs`) and how they interact with the automated deployment system. Use `docs` when updating a doc without wanting to trigger a release.
 
 ## Common Commands
 - Development: `npm run dev`

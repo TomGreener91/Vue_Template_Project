@@ -39,8 +39,40 @@ If you elected to deploy documentation to GitHub Pages when scaffolding your plu
 
 ---
 
-## Your Role
+## Developer & Agent Responsibilities
 
-Because this system is completely automated and sequential, your only responsibility as a developer is to **write meaningful commit messages** following the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). 
+> [!IMPORTANT]  
+> **For AI Agents & Developers:** Because this system is completely automated and sequential, your primary responsibility is to **write meaningful commit messages** following the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Do not attempt to manually bump versions in `package.json` or manually create release tags.
 
-The automation will handle the versioning, changelogs, publishing, and documentation hosting entirely on its own!
+The automation will handle the versioning, changelogs, publishing, and documentation hosting entirely on its own based on the commit prefixes used!
+
+## Commit Types and Release Triggers
+
+When writing commit messages (or when agents are generating commits), use the following standard prefixes:
+
+### Triggers a Release
+* **`feat:`** - A new feature. Triggers a **MINOR** version bump (e.g., 1.0.0 -> 1.1.0).
+* **`fix:`** - A bug fix. Triggers a **PATCH** version bump (e.g., 1.0.0 -> 1.0.1).
+* **`perf:`** - A code change that improves performance. Triggers a **PATCH** version bump.
+* **`BREAKING CHANGE:`** (or `!` after the prefix like `feat!:` or `fix!:`) - An API breaking change. Triggers a **MAJOR** version bump (e.g., 1.0.0 -> 2.0.0).
+
+### Does NOT Trigger a Release (Safe to use for internal updates)
+Use these prefixes when you want to update the repository without triggering the CI/CD deployment pipeline:
+* **`docs:`** - Documentation only changes (e.g., updating the README). Use this when updating a doc but you are not wanting to trigger a release.
+* **`chore:`** - Changes to the build process or auxiliary tools and libraries (e.g., updating dependencies, modifying `.gitignore`).
+* **`style:`** - Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc).
+* **`refactor:`** - A code change that neither fixes a bug nor adds a feature.
+* **`test:`** - Adding missing tests or correcting existing tests.
+* **`ci:`** - Changes to CI configuration files and scripts.
+
+### Example Usage
+
+To update the documentation without deploying a new version:
+```bash
+git commit -m "docs: update readme with new API instructions"
+```
+
+To add a new feature that will be automatically deployed:
+```bash
+git commit -m "feat: add user authentication"
+```
