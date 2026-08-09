@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "master", "main", "dev", "development" ]
+    branches: ['master', 'main', 'dev', 'development']
   pull_request:
-    branches: [ "master", "main", "dev", "development" ]
+    branches: ['master', 'main', 'dev', 'development']
 
 jobs:
   build-and-test:
@@ -22,69 +22,73 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Node and Build Packages (Workspaces)
-      uses: ./.github/actions/setup-node-build
-      with:
-        node-version: ${{ matrix.node-version }}
-        build-command: 'npm run build'
+      - name: Setup Node and Build Packages (Workspaces)
+        uses: ./.github/actions/setup-node-build
+        with:
+          node-version: ${{ matrix.node-version }}
+          build-command: 'npm run build'
 
-    - name: Lint Code
-      run: npm run lint:eslint
-      
-    - name: Lint Styles
-      run: npm run lint:styles
+      - name: Lint Code
+        run: npm run lint:eslint
 
-    - name: Type Check
-      run: npm run type-check
+      - name: Lint Styles
+        run: npm run lint:styles
 
-    - name: Run Tests
-      run: npm run test --if-present
+      - name: Type Check
+        run: npm run type-check
 
-    - name: Build Root App
-      run: npm run build
+      - name: Run Tests
+        run: npm run test --if-present
 
-    - name: NPM Health Check
-      if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
-      run: |
-        npm run deps:audit > audit.txt || true
-        npm run deps:outdated > outdated.txt || true
+      - name: Build Root App
+        run: npm run build
 
-    - name: Report Health to PR
-      if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs');
-          const audit = fs.existsSync('audit.txt') ? fs.readFileSync('audit.txt', 'utf8') : 'No audit results.';
-          const outdated = fs.existsSync('outdated.txt') ? fs.readFileSync('outdated.txt', 'utf8') : 'No outdated results.';
-          
-          const truncate = (str, max) => str.length > max ? str.substring(0, max) + '\n... (truncated)' : str;
-          
-          const commentBody = `## 🏥 NPM Health Check Report
-          
-          <details>
-            <summary><strong>NPM Audit Results</strong></summary>
-            
-            \`\`\`text
-            ${truncate(audit, 30000)}
-            \`\`\`
-          </details>
-          
-          <details>
-            <summary><strong>NPM Outdated Packages</strong></summary>
-            
-            \`\`\`text
-            ${truncate(outdated, 30000)}
-            \`\`\`
-          </details>
-          `;
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: commentBody
-          });
+      - name: Run Project Doctor
+        if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
+        run: npm run doctor
+        continue-on-error: true
+
+      - name: Report Health to PR
+        if: github.event_name == 'pull_request' && matrix.node-version == '22.x'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.existsSync('health-report.md')
+              ? fs.readFileSync('health-report.md', 'utf8')
+              : 'Health report was not generated — see the "Run Project Doctor" step logs.';
+
+            // A hidden marker lets us update the same comment on every push instead of
+            // spamming a new one, and to find it again reliably regardless of report content.
+            const marker = '<!-- project-doctor-report -->';
+            const truncate = (str, max) =>
+              str.length > max
+                ? `${str.substring(0, max)}\n\n... (truncated — run \`npm run doctor\` locally for the full report)`
+                : str;
+            const commentBody = `${marker}\n${truncate(report, 60000)}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }

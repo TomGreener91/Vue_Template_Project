@@ -43,6 +43,12 @@ const runCommand = (command) => {
   });
 };
 
+const renderBar = (value, max, width = 20) => {
+  const ratio = Math.max(0, Math.min(value / max, 1));
+  const filled = Math.round(ratio * width);
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+};
+
 const runGitCommand = (args) => {
   try {
     return execSync(`git ${args}`, { cwd: rootDir, encoding: 'utf8' }).trim();
@@ -210,9 +216,11 @@ const checkBuildBundleSize = async () => {
   const lines = [];
   if (result.success && chunks.length) {
     lines.push('Build output:');
-    chunks.forEach((c) =>
-      lines.push(`  ${c.file} — ${c.kb} kB${c.gzipKb !== null ? ` (gzip: ${c.gzipKb} kB)` : ''}`),
-    );
+    chunks.forEach((c) => {
+      const pct = Math.round((c.kb / 500) * 100);
+      lines.push(`  ${c.file} — ${c.kb} kB${c.gzipKb !== null ? ` (gzip: ${c.gzipKb} kB)` : ''}`);
+      lines.push(`    ${renderBar(c.kb, 500)} ${pct}% of 500 kB warning threshold`);
+    });
     if (oversized.length) {
       lines.push(
         '',
@@ -290,6 +298,7 @@ const checkProjectConventions = async () => {
 const checks = [
   {
     name: 'Environment & Runtime',
+    category: 'Project Status',
     description:
       'Confirms Node.js/npm versions and whether this repo is still in boilerplate mode.',
     fixCommand: null,
@@ -300,6 +309,7 @@ const checks = [
   },
   {
     name: 'Git Working Tree',
+    category: 'Project Status',
     description:
       'Reports uncommitted changes and how far the current branch has drifted from origin.',
     fixCommand: null,
@@ -310,6 +320,7 @@ const checks = [
   },
   {
     name: 'Format Check (Prettier)',
+    category: 'Code Quality',
     description: 'Checks if all code files are consistently formatted.',
     fixCommand: 'npm run lint:prettier:fix',
     command: 'npm run lint:prettier',
@@ -318,6 +329,7 @@ const checks = [
   },
   {
     name: 'Lint JS/TS (ESLint)',
+    category: 'Code Quality',
     description: 'Analyzes JavaScript and TypeScript files for code quality issues.',
     fixCommand: 'npm run lint:eslint:fix',
     command: 'npm run lint:eslint',
@@ -329,6 +341,7 @@ const checks = [
   },
   {
     name: 'Lint Styles (Stylelint)',
+    category: 'Code Quality',
     description: 'Analyzes CSS and Vue files for styling quality issues.',
     fixCommand: 'npm run lint:styles:fix',
     command: 'npm run lint:styles',
@@ -340,6 +353,7 @@ const checks = [
   },
   {
     name: 'Type Check (Vue TSC)',
+    category: 'Code Quality',
     description: 'Strictly type-checks Vue templates and TypeScript files.',
     fixCommand: null,
     command: 'npm run type-check',
@@ -347,16 +361,8 @@ const checks = [
     parse: (stdout) => stdout.split('\n').filter((l) => l.toLowerCase().includes('error ')).length,
   },
   {
-    name: 'Build & Bundle Size',
-    description:
-      'Runs the production build and flags output chunks over the 500 kB warning threshold.',
-    fixCommand: null,
-    allowFail: false,
-    type: 'custom',
-    run: checkBuildBundleSize,
-  },
-  {
     name: 'Project Conventions',
+    category: 'Code Quality',
     description:
       "Checks store/service file naming and raw console statement usage against the project's own coding standards.",
     fixCommand: null,
@@ -365,7 +371,19 @@ const checks = [
     run: checkProjectConventions,
   },
   {
+    name: 'Build & Bundle Size',
+    category: 'Build',
+    description:
+      'Runs the production build and flags output chunks over the 500 kB warning threshold.',
+    fixCommand: null,
+    allowFail: false,
+    type: 'custom',
+    alwaysShowOutput: true,
+    run: checkBuildBundleSize,
+  },
+  {
     name: 'NPM Audit',
+    category: 'Dependencies',
     description: 'Scans project dependencies for known security vulnerabilities.',
     fixCommand: 'npm audit fix',
     command: 'npm run deps:audit',
@@ -377,6 +395,7 @@ const checks = [
   },
   {
     name: 'NPM Outdated',
+    category: 'Dependencies',
     description: 'Checks for outdated NPM packages in the project.',
     fixCommand: 'npm update',
     command: 'npm run deps:outdated',
@@ -391,6 +410,7 @@ const checks = [
   },
   {
     name: 'Dependency Usage',
+    category: 'Dependencies',
     description:
       'Flags dependencies that are declared but unused, or used but not declared (via depcheck).',
     fixCommand: null,
@@ -400,17 +420,86 @@ const checks = [
   },
 ];
 
-const getHealthIcon = (count) => {
-  if (count === 0) return '🟢';
-  if (count >= 1 && count <= 5) return '🟡';
-  return '🔴';
+const CATEGORY_ORDER = ['Project Status', 'Code Quality', 'Build', 'Dependencies'];
+const CATEGORY_EMOJI = {
+  'Project Status': '🖥️',
+  'Code Quality': '🎨',
+  Build: '🏗️',
+  Dependencies: '📦',
+};
+
+// Shields.io escaping: literal `-` becomes `--` and spaces become `_`, then URL-encode the rest.
+// `(`/`)` are also encoded so the badge URL is unambiguous inside a Markdown link destination.
+const shieldEncode = (str) =>
+  encodeURIComponent(String(str).replace(/-/g, '--').replace(/ /g, '_'))
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29');
+
+const badgeColorForCount = (count) => {
+  if (count === 0) return 'brightgreen';
+  if (count <= 5) return 'yellow';
+  return 'red';
+};
+
+const badgeMessageForResult = (res) => {
+  if (res.name === 'Environment & Runtime') return res.success ? 'OK' : 'Version Mismatch';
+  if (res.name === 'Git Working Tree') {
+    return res.count === 0 ? 'Clean' : `${res.count} Uncommitted`;
+  }
+  if (res.name === 'Build & Bundle Size' && !res.success) return 'Build Failed';
+  return res.count === 0 ? 'Passing' : `${res.count} Issue${res.count === 1 ? '' : 's'}`;
+};
+
+const badgeColorForResult = (res) => {
+  if (res.name === 'Build & Bundle Size' && !res.success) return 'red';
+  if (res.name === 'Environment & Runtime') return res.success ? 'brightgreen' : 'red';
+  return badgeColorForCount(res.count);
+};
+
+const buildBadge = (label, message, color) =>
+  `![${label}: ${message}](https://img.shields.io/badge/${shieldEncode(label)}-${shieldEncode(message)}-${color})`;
+
+const buildResultBadge = (res) =>
+  buildBadge(res.name, badgeMessageForResult(res), badgeColorForResult(res));
+
+const buildOverallBadge = (results) => {
+  const criticalFails = results.filter((r) => !r.success && !r.allowFail).length;
+  const warnings = results.filter((r) => !r.success && r.allowFail).length;
+
+  if (criticalFails > 0) {
+    return buildBadge('Project Health', `${criticalFails} Failing`, 'red');
+  }
+  if (warnings > 0) {
+    return buildBadge(
+      'Project Health',
+      `${warnings} Warning${warnings === 1 ? '' : 's'}`,
+      'yellow',
+    );
+  }
+  return buildBadge('Project Health', 'All Clear', 'brightgreen');
+};
+
+const groupByCategory = (results) => {
+  const groups = new Map();
+  for (const res of results) {
+    const category = res.category ?? 'Other';
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(res);
+  }
+  return CATEGORY_ORDER.filter((category) => groups.has(category)).map((category) => ({
+    category,
+    emoji: CATEGORY_EMOJI[category] ?? '📁',
+    items: groups.get(category),
+  }));
 };
 
 const generateMarkdown = (results) => {
   const date = new Date().toLocaleString();
+  const categories = groupByCategory(results);
 
   let md = `# 🏥 Project Health Dashboard\n`;
   md += `*Generated on: ${date}*\n\n`;
+  md += `${buildOverallBadge(results)}\n\n`;
 
   if (isBoilerplateMode) {
     md += `> ⚠️ **Boilerplate Mode Detected** — \`.templateScripts/\` is still present, so this project hasn't been scaffolded yet. `;
@@ -418,82 +507,79 @@ const generateMarkdown = (results) => {
     md += `Some paths referenced in config/docs (e.g. \`.github/workflows\`, \`plugins/**\`) are expected to be absent or templated until then — see the **Environment & Runtime** check below for details.\n\n`;
   }
 
-  // Metrics Chart
-  md += `## 📈 Health Metrics Chart\n\n`;
-  md += `| Metric | Count | Health |\n`;
-  md += `| :--- | :---: | :---: |\n`;
+  // Summary, grouped by category so related checks are easy to scan together.
+  md += `## 📊 Summary\n\n`;
 
-  results.forEach((res) => {
-    md += `| **${res.name}** | ${res.count} | ${res.healthIcon} |\n`;
+  categories.forEach(({ category, emoji, items }) => {
+    md += `#### ${emoji} ${category}\n\n`;
+    md += `| Check | Status | Count |\n`;
+    md += `| :--- | :--- | :---: |\n`;
+    items.forEach((res) => {
+      md += `| **${res.name}** | ${buildResultBadge(res)} | ${res.count} |\n`;
+    });
+    md += `\n`;
   });
 
-  // Summary Table
-  md += `\n---\n\n`;
-  md += `## 📊 High-Level Summary\n\n`;
-  md += `| Check | Status |\n`;
-  md += `|-------|--------|\n`;
-
-  results.forEach((res) => {
-    const icon = res.success ? '✅ Pass' : res.allowFail ? '⚠️ Warning' : '❌ Fail';
-    md += `| **${res.name}** | ${icon} |\n`;
-  });
-
-  md += `\n---\n\n`;
+  md += `---\n\n`;
   md += `## 📋 Detailed Logs\n\n`;
 
-  results.forEach((res) => {
-    const icon = res.success ? '✅' : res.allowFail ? '⚠️' : '❌';
-    md += `### ${icon} ${res.name}\n\n`;
-    md += `*${res.description}*\n\n`;
+  categories.forEach(({ category, emoji, items }) => {
+    md += `## ${emoji} ${category}\n\n`;
 
-    if (res.success && res.count === 0 && !res.alwaysShowOutput) {
-      md += `*Completed successfully with no issues.*\n\n`;
-    } else {
-      if (!res.success && res.fixCommand) {
-        md += `> 💡 **Recommendation:** Run \`${res.fixCommand}\` to attempt an auto-fix for some of these issues.\n`;
-        md += `> *(Note: This command may not be able to automatically fix all errors. Manual intervention may still be required).* \n\n`;
-      }
+    items.forEach((res) => {
+      const icon = res.success ? '✅' : res.allowFail ? '⚠️' : '❌';
+      md += `### ${icon} ${res.name}\n\n`;
+      md += `*${res.description}*\n\n`;
 
-      md += `<details>\n<summary>View Output Log</summary>\n\n`;
-
-      const cleanStdout = cleanNpmBoilerplate(stripAnsi(res.stdout));
-      const cleanStderr = cleanNpmBoilerplate(stripAnsi(res.stderr));
-      const combinedOutput = (cleanStdout + '\n' + cleanStderr).trim();
-
-      if (res.name.includes('Prettier') && combinedOutput) {
-        const warnLines = combinedOutput.split('\n').filter((l) => l.includes('[warn]'));
-        const errorLines = combinedOutput.split('\n').filter((l) => l.includes('[error]'));
-
-        if (warnLines.length > 0) {
-          md += `#### Unformatted Files\n`;
-          warnLines.forEach((l) => {
-            md += `- \`${l.replace('[warn]', '').trim()}\`\n`;
-          });
-          md += `\n`;
-        }
-
-        if (errorLines.length > 0) {
-          md += `#### Syntax Errors\n`;
-          md += `\`\`\`text\n${errorLines.join('\n')}\n\`\`\`\n\n`;
-        }
-
-        if (warnLines.length === 0 && errorLines.length === 0) {
-          md += `#### Output\n\`\`\`text\n${combinedOutput}\n\`\`\`\n\n`;
-        }
+      if (res.success && res.count === 0 && !res.alwaysShowOutput) {
+        md += `*Completed successfully with no issues.*\n\n`;
       } else {
-        if (cleanStdout) {
-          md += `#### Output\n`;
-          md += `\`\`\`text\n${cleanStdout}\n\`\`\`\n\n`;
+        if (!res.success && res.fixCommand) {
+          md += `> 💡 **Recommendation:** Run \`${res.fixCommand}\` to attempt an auto-fix for some of these issues.\n`;
+          md += `> *(Note: This command may not be able to automatically fix all errors. Manual intervention may still be required).* \n\n`;
         }
 
-        if (cleanStderr) {
-          md += `#### Error Log\n`;
-          md += `\`\`\`text\n${cleanStderr}\n\`\`\`\n\n`;
+        md += `<details>\n<summary>View Output Log</summary>\n\n`;
+
+        const cleanStdout = cleanNpmBoilerplate(stripAnsi(res.stdout));
+        const cleanStderr = cleanNpmBoilerplate(stripAnsi(res.stderr));
+        const combinedOutput = (cleanStdout + '\n' + cleanStderr).trim();
+
+        if (res.name.includes('Prettier') && combinedOutput) {
+          const warnLines = combinedOutput.split('\n').filter((l) => l.includes('[warn]'));
+          const errorLines = combinedOutput.split('\n').filter((l) => l.includes('[error]'));
+
+          if (warnLines.length > 0) {
+            md += `#### Unformatted Files\n`;
+            warnLines.forEach((l) => {
+              md += `- \`${l.replace('[warn]', '').trim()}\`\n`;
+            });
+            md += `\n`;
+          }
+
+          if (errorLines.length > 0) {
+            md += `#### Syntax Errors\n`;
+            md += `\`\`\`text\n${errorLines.join('\n')}\n\`\`\`\n\n`;
+          }
+
+          if (warnLines.length === 0 && errorLines.length === 0) {
+            md += `#### Output\n\`\`\`text\n${combinedOutput}\n\`\`\`\n\n`;
+          }
+        } else {
+          if (cleanStdout) {
+            md += `#### Output\n`;
+            md += `\`\`\`text\n${cleanStdout}\n\`\`\`\n\n`;
+          }
+
+          if (cleanStderr) {
+            md += `#### Error Log\n`;
+            md += `\`\`\`text\n${cleanStderr}\n\`\`\`\n\n`;
+          }
         }
+
+        md += `</details>\n\n`;
       }
-
-      md += `</details>\n\n`;
-    }
+    });
   });
 
   return md;
@@ -509,9 +595,8 @@ const main = async () => {
 
     const count =
       check.type === 'custom' ? result.count : check.parse(`${result.stdout}\n${result.stderr}`);
-    const healthIcon = getHealthIcon(count);
 
-    results.push({ ...check, ...result, count, healthIcon });
+    results.push({ ...check, ...result, count });
 
     if (result.success) {
       console.log(`  ✅ Passed (Found ${count} issues)\n`);
