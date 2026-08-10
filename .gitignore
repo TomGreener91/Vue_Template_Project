@@ -28,3 +28,4 @@ dist-ssr
 
 # Health Check Report
 health-report.md
+health-report.json
