@@ -1,4 +1,4 @@
-import { exec, execSync } from 'child_process';
+import { exec, execFile, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,19 +7,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const reportPath = path.resolve(rootDir, 'health-report.md');
+const reportJsonPath = path.resolve(rootDir, 'health-report.json');
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
 
 // True until `node .templateScripts/setup.cjs` scaffolds and (optionally) removes this directory.
 const isBoilerplateMode = fs.existsSync(path.join(rootDir, '.templateScripts'));
 
-const stripAnsi = (str) => {
-  if (!str) return '';
-  return str.replace(
-    // eslint-disable-next-line no-control-regex -- matches ANSI escape sequences on purpose
-    /[][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
-    '',
-  );
-};
+const binDir = path.join(rootDir, 'node_modules', '.bin');
+const bin = (name) => path.join(binDir, process.platform === 'win32' ? `${name}.cmd` : name);
+const rel = (file) => path.relative(rootDir, file).split(path.sep).join('/');
+
+const MAX_ISSUES_PER_CHECK = 50;
+const MAX_BUFFER = 30 * 1024 * 1024;
+
+// Built from a runtime char code (rather than a regex literal containing an escape) so the
+// ANSI escape byte never sits in the source file next to the bracket that follows it.
+const ESCAPE_CHAR = String.fromCharCode(27);
+const ANSI_PATTERN = new RegExp(
+  `${ESCAPE_CHAR}[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]`,
+  'g',
+);
+
+const stripAnsi = (str) => (str ? str.replace(ANSI_PATTERN, '') : '');
 
 const cleanNpmBoilerplate = (str) => {
   if (!str) return '';
@@ -30,6 +39,7 @@ const cleanNpmBoilerplate = (str) => {
   return lines.join('\n').trim();
 };
 
+// Only used by checks that still shell out to an npm script (currently just the build).
 const runCommand = (command) => {
   return new Promise((resolve) => {
     exec(command, { cwd: rootDir }, (error, stdout, stderr) => {
@@ -42,6 +52,15 @@ const runCommand = (command) => {
     });
   });
 };
+
+// Invokes a binary directly (bypassing npm's script banner) so tool output can be
+// parsed as clean JSON instead of scraped from decorated CLI text.
+const execCapture = (command, args) =>
+  new Promise((resolve) => {
+    execFile(command, args, { cwd: rootDir, maxBuffer: MAX_BUFFER }, (error, stdout, stderr) => {
+      resolve({ success: !error, stdout: stdout ?? '', stderr: stderr ?? '', error });
+    });
+  });
 
 const renderBar = (value, max, width = 20) => {
   const ratio = Math.max(0, Math.min(value / max, 1));
@@ -144,6 +163,230 @@ const checkGitStatus = async () => {
   return { success: count === 0, stdout: lines.join('\n'), stderr: '', count };
 };
 
+/** Checks if all code files are consistently formatted, via Prettier's own file list. */
+// Only matches the first line of each parse error (`[error] path.ext: message`) - Prettier
+// follows it with several unprefixed/`[error]`-prefixed source-context lines per error, which
+// would otherwise each get counted as a separate issue.
+const PRETTIER_ERROR_LINE =
+  /^\[error\]\s+(\S+\.(?:ts|tsx|js|jsx|mjs|cjs|vue|json|css|scss|less|html|md|yml|yaml)):\s*(.+)$/;
+
+const checkFormatPrettier = async () => {
+  const { stdout, stderr } = await execCapture(bin('prettier'), ['--list-different', '.']);
+  const unformatted = stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const parseErrors = [...stderr.matchAll(new RegExp(PRETTIER_ERROR_LINE, 'gm'))];
+
+  const issues = [
+    ...unformatted.map((file) => ({ file, message: 'Not formatted with Prettier' })),
+    ...parseErrors.map((m) => ({ file: m[1], message: m[2] })),
+  ];
+
+  return {
+    success: issues.length === 0,
+    count: issues.length,
+    errorCount: issues.length,
+    warningCount: 0,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
+};
+
+/** Analyzes JavaScript/TypeScript/Vue files for code quality issues, via ESLint's JSON formatter. */
+const checkLintEslint = async () => {
+  const { stdout } = await execCapture(bin('eslint'), ['.', '--format', 'json']);
+  let files;
+  try {
+    files = JSON.parse(stdout);
+  } catch {
+    return {
+      success: false,
+      count: 1,
+      errorCount: 1,
+      warningCount: 0,
+      issues: [{ file: null, message: 'ESLint did not return valid JSON output.' }],
+    };
+  }
+
+  let errorCount = 0;
+  let warningCount = 0;
+  const issues = [];
+  for (const f of files) {
+    errorCount += f.errorCount;
+    warningCount += f.warningCount;
+    for (const m of f.messages) {
+      issues.push({
+        file: rel(f.filePath),
+        line: m.line,
+        rule: m.ruleId,
+        message: m.message,
+        severity: m.severity === 2 ? 'error' : 'warning',
+      });
+    }
+  }
+
+  return {
+    success: errorCount === 0,
+    count: errorCount + warningCount,
+    errorCount,
+    warningCount,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
+};
+
+/** Analyzes CSS and Vue `<style>` blocks, via Stylelint's JSON formatter. */
+const checkLintStylelint = async () => {
+  // Stylelint writes its JSON report to stderr when it finds errors, stdout when clean.
+  const { stdout, stderr } = await execCapture(bin('stylelint'), [
+    '**/*.{css,vue}',
+    '--formatter',
+    'json',
+  ]);
+  let files;
+  try {
+    files = JSON.parse(stdout || stderr);
+  } catch {
+    return {
+      success: false,
+      count: 1,
+      errorCount: 1,
+      warningCount: 0,
+      issues: [{ file: null, message: 'Stylelint did not return valid JSON output.' }],
+    };
+  }
+
+  let errorCount = 0;
+  let warningCount = 0;
+  const issues = [];
+  for (const f of files) {
+    for (const w of f.warnings) {
+      if (w.severity === 'error') errorCount += 1;
+      else warningCount += 1;
+      issues.push({
+        file: rel(f.source),
+        line: w.line,
+        rule: w.rule,
+        message: w.text,
+        severity: w.severity,
+      });
+    }
+  }
+
+  return {
+    success: errorCount === 0,
+    count: errorCount + warningCount,
+    errorCount,
+    warningCount,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
+};
+
+/** Strictly type-checks Vue templates and TypeScript files. vue-tsc has no JSON output mode, so this parses its `--pretty false` text format (both the `file(l,c): error TSxxxx:` and `file(l,c) - error TSxxxx:` variants show up across TS versions). */
+const checkTypeCheck = async () => {
+  const { stdout, stderr } = await execCapture(bin('vue-tsc'), ['--noEmit', '--pretty', 'false']);
+  const combined = `${stdout}\n${stderr}`;
+
+  let errorCount = 0;
+  let warningCount = 0;
+  const issues = [];
+
+  for (const line of combined.split('\n')) {
+    const m =
+      line.match(/^(.+?)\((\d+),(\d+)\)\s*:\s*(error|warning)\s+(TS\d+):\s*(.+)$/) ??
+      line.match(/^(.+?)\((\d+),(\d+)\)\s*-\s*(error|warning)\s+(TS\d+):\s*(.+)$/);
+    if (!m) continue;
+    const [, file, lineNo, , severity, code, message] = m;
+    if (severity === 'error') errorCount += 1;
+    else warningCount += 1;
+    issues.push({
+      file: rel(path.resolve(rootDir, file)),
+      line: Number(lineNo),
+      rule: code,
+      message,
+      severity,
+    });
+  }
+
+  return {
+    success: errorCount === 0,
+    count: errorCount + warningCount,
+    errorCount,
+    warningCount,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
+};
+
+const SEVERITY_RANK = { critical: 4, high: 3, moderate: 2, low: 1, info: 0 };
+
+/** Scans dependencies for known security vulnerabilities via `npm audit --json`, ranked by severity. */
+const checkNpmAudit = async () => {
+  const { stdout } = await execCapture('npm', ['audit', '--json']);
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch {
+    return {
+      success: true,
+      count: 0,
+      errorCount: 0,
+      warningCount: 0,
+      issues: [],
+      stdout: 'Could not parse `npm audit` output.',
+    };
+  }
+
+  const bySeverity = report.metadata?.vulnerabilities ?? {};
+  const criticalOrHigh = (bySeverity.critical ?? 0) + (bySeverity.high ?? 0);
+  const moderateOrLow = (bySeverity.moderate ?? 0) + (bySeverity.low ?? 0);
+
+  const issues = Object.values(report.vulnerabilities ?? {})
+    .sort((a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0))
+    .map((v) => {
+      const advisory = v.via.find((entry) => typeof entry === 'object');
+      return {
+        file: v.name,
+        rule: v.severity,
+        message: advisory ? advisory.title : `Vulnerable dependency (${v.severity})`,
+      };
+    });
+
+  return {
+    success: criticalOrHigh === 0,
+    count: criticalOrHigh + moderateOrLow,
+    errorCount: criticalOrHigh,
+    warningCount: moderateOrLow,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+    severityBreakdown: bySeverity,
+  };
+};
+
+/** Checks for outdated NPM packages via `npm outdated --json`. */
+const checkNpmOutdated = async () => {
+  const { stdout } = await execCapture('npm', ['outdated', '--json']);
+  let packages = {};
+  if (stdout.trim()) {
+    try {
+      packages = JSON.parse(stdout);
+    } catch {
+      packages = {};
+    }
+  }
+
+  const entries = Object.entries(packages);
+  const issues = entries.map(([name, info]) => ({
+    file: name,
+    message: `${info.current ?? 'missing'} → latest ${info.latest}`,
+  }));
+
+  return {
+    success: entries.length === 0,
+    count: entries.length,
+    errorCount: 0,
+    warningCount: entries.length,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
+};
+
 // Packages only ever referenced by name inside JSON/CSS config (no JS/TS import for depcheck to see).
 const DEPCHECK_IGNORES = [
   // Tailwind v4 CSS-first plugins, loaded via `@plugin` in src/assets/main.css
@@ -176,27 +419,29 @@ const checkDependencyUsage = async () => {
     ignoreMatches: DEPCHECK_IGNORES,
   });
 
-  const unused = [...result.dependencies, ...result.devDependencies];
-  const missing = Object.keys(result.missing);
-  const count = unused.length + missing.length;
+  const missingEntries = Object.entries(result.missing);
+  const issues = [
+    ...result.dependencies.map((d) => ({
+      file: d,
+      message: 'Declared in package.json but unused',
+    })),
+    ...result.devDependencies.map((d) => ({
+      file: d,
+      message: 'Declared in package.json but unused',
+    })),
+    ...missingEntries.map(([d, files]) => ({
+      file: d,
+      message: `Used in code but not declared: ${files.map((f) => rel(f)).join(', ')}`,
+    })),
+  ];
 
-  const lines = [];
-  if (unused.length) {
-    lines.push('Unused dependencies:', ...unused.map((d) => `  - ${d}`));
-  }
-  if (missing.length) {
-    lines.push(
-      'Missing dependencies (imported in code, not declared in package.json):',
-      ...missing.map(
-        (d) => `  - ${d}: ${result.missing[d].map((f) => path.relative(rootDir, f)).join(', ')}`,
-      ),
-    );
-  }
-  if (count === 0) {
-    lines.push('No unused or missing dependencies detected.');
-  }
-
-  return { success: count === 0, stdout: lines.join('\n'), stderr: '', count };
+  return {
+    success: issues.length === 0,
+    count: issues.length,
+    errorCount: 0,
+    warningCount: issues.length,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
+  };
 };
 
 /** Runs the production build and flags any output chunk over Vite's 500 kB warning threshold. */
@@ -255,19 +500,19 @@ const walkFiles = (dir, exts, results = []) => {
 
 /** Checks the project's own conventions from gemini.md: store/service naming and no raw console.*. */
 const checkProjectConventions = async () => {
-  const violations = [];
+  const issues = [];
 
   const storesDir = path.join(rootDir, 'src', 'stores');
   for (const file of fs.existsSync(storesDir) ? fs.readdirSync(storesDir) : []) {
     if (file.endsWith('.ts') && !file.endsWith('.store.ts') && file !== 'index.ts') {
-      violations.push(`src/stores/${file} — expected \`*.store.ts\` naming`);
+      issues.push({ file: `src/stores/${file}`, message: 'Expected `*.store.ts` naming' });
     }
   }
 
   const servicesDir = path.join(rootDir, 'src', 'services');
   for (const file of fs.existsSync(servicesDir) ? fs.readdirSync(servicesDir) : []) {
     if (file.endsWith('.ts') && !file.endsWith('.service.ts') && file !== 'index.ts') {
-      violations.push(`src/services/${file} — expected \`*.service.ts\` naming`);
+      issues.push({ file: `src/services/${file}`, message: 'Expected `*.service.ts` naming' });
     }
   }
 
@@ -277,21 +522,19 @@ const checkProjectConventions = async () => {
     const content = fs.readFileSync(file, 'utf8');
     const matches = content.match(CONSOLE_CALL_REGEX);
     if (matches) {
-      violations.push(
-        `${path.relative(rootDir, file)} — ${matches.length} raw \`console.*\` call(s); use \`logger\` from \`src/utils/logger.ts\` instead`,
-      );
+      issues.push({
+        file: rel(file),
+        message: `${matches.length} raw \`console.*\` call(s); use \`logger\` from \`src/utils/logger.ts\` instead`,
+      });
     }
   }
 
-  const lines = violations.length
-    ? violations.map((v) => `- ${v}`)
-    : ['No naming-convention or console.* usage violations detected.'];
-
   return {
-    success: violations.length === 0,
-    stdout: lines.join('\n'),
-    stderr: '',
-    count: violations.length,
+    success: issues.length === 0,
+    count: issues.length,
+    errorCount: 0,
+    warningCount: issues.length,
+    issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
   };
 };
 
@@ -303,7 +546,6 @@ const checks = [
       'Confirms Node.js/npm versions and whether this repo is still in boilerplate mode.',
     fixCommand: null,
     allowFail: false,
-    type: 'custom',
     alwaysShowOutput: true,
     run: checkEnvironment,
   },
@@ -314,7 +556,6 @@ const checks = [
       'Reports uncommitted changes and how far the current branch has drifted from origin.',
     fixCommand: null,
     allowFail: true,
-    type: 'custom',
     alwaysShowOutput: true,
     run: checkGitStatus,
   },
@@ -323,42 +564,32 @@ const checks = [
     category: 'Code Quality',
     description: 'Checks if all code files are consistently formatted.',
     fixCommand: 'npm run lint:prettier:fix',
-    command: 'npm run lint:prettier',
     allowFail: false,
-    parse: (stdout) => stdout.split('\n').filter((l) => l.includes('[warn]')).length,
+    run: checkFormatPrettier,
   },
   {
     name: 'Lint JS/TS (ESLint)',
     category: 'Code Quality',
     description: 'Analyzes JavaScript and TypeScript files for code quality issues.',
     fixCommand: 'npm run lint:eslint:fix',
-    command: 'npm run lint:eslint',
     allowFail: false,
-    parse: (stdout) => {
-      const m = stdout.match(/✖ (\d+) problem/);
-      return m ? parseInt(m[1], 10) : 0;
-    },
+    run: checkLintEslint,
   },
   {
     name: 'Lint Styles (Stylelint)',
     category: 'Code Quality',
     description: 'Analyzes CSS and Vue files for styling quality issues.',
     fixCommand: 'npm run lint:styles:fix',
-    command: 'npm run lint:styles',
     allowFail: false,
-    parse: (stdout) => {
-      const m = stdout.match(/[✖×]\s+(\d+)\s+problem/);
-      return m ? parseInt(m[1], 10) : 0;
-    },
+    run: checkLintStylelint,
   },
   {
     name: 'Type Check (Vue TSC)',
     category: 'Code Quality',
     description: 'Strictly type-checks Vue templates and TypeScript files.',
     fixCommand: null,
-    command: 'npm run type-check',
     allowFail: false,
-    parse: (stdout) => stdout.split('\n').filter((l) => l.toLowerCase().includes('error ')).length,
+    run: checkTypeCheck,
   },
   {
     name: 'Project Conventions',
@@ -367,7 +598,6 @@ const checks = [
       "Checks store/service file naming and raw console statement usage against the project's own coding standards.",
     fixCommand: null,
     allowFail: true,
-    type: 'custom',
     run: checkProjectConventions,
   },
   {
@@ -377,7 +607,6 @@ const checks = [
       'Runs the production build and flags output chunks over the 500 kB warning threshold.',
     fixCommand: null,
     allowFail: false,
-    type: 'custom',
     alwaysShowOutput: true,
     run: checkBuildBundleSize,
   },
@@ -386,27 +615,16 @@ const checks = [
     category: 'Dependencies',
     description: 'Scans project dependencies for known security vulnerabilities.',
     fixCommand: 'npm audit fix',
-    command: 'npm run deps:audit',
     allowFail: true,
-    parse: (stdout) => {
-      const m = stdout.match(/(\d+)\s+vulnerabilities/i);
-      return m ? parseInt(m[1], 10) : 0;
-    },
+    run: checkNpmAudit,
   },
   {
     name: 'NPM Outdated',
     category: 'Dependencies',
     description: 'Checks for outdated NPM packages in the project.',
     fixCommand: 'npm update',
-    command: 'npm run deps:outdated',
     allowFail: true,
-    parse: (stdout) => {
-      const lines = stdout
-        .trim()
-        .split('\n')
-        .filter((l) => l.length > 0);
-      return lines.length > 0 ? lines.length - 1 : 0;
-    },
+    run: checkNpmOutdated,
   },
   {
     name: 'Dependency Usage',
@@ -415,7 +633,6 @@ const checks = [
       'Flags dependencies that are declared but unused, or used but not declared (via depcheck).',
     fixCommand: null,
     allowFail: true,
-    type: 'custom',
     run: checkDependencyUsage,
   },
 ];
@@ -462,21 +679,44 @@ const buildBadge = (label, message, color) =>
 const buildResultBadge = (res) =>
   buildBadge(res.name, badgeMessageForResult(res), badgeColorForResult(res));
 
-const buildOverallBadge = (results) => {
-  const criticalFails = results.filter((r) => !r.success && !r.allowFail).length;
-  const warnings = results.filter((r) => !r.success && r.allowFail).length;
+// A-F grade summarizing only the blocking (allowFail: false) checks, since advisory
+// checks (audit/outdated/conventions/dependency usage/git) are tracked in their own
+// rows but shouldn't by themselves tank the headline grade - except a critical/high
+// vulnerability still caps it, since "clean lint, exploitable dependency" isn't an A.
+const GRADE_ICON = { A: '🟢', B: '🟢', C: '🟡', D: '🟠', F: '🔴' };
+const GRADE_BADGE_COLOR = {
+  A: 'brightgreen',
+  B: 'brightgreen',
+  C: 'yellow',
+  D: 'orange',
+  F: 'red',
+};
+const GRADE_RANK = { A: 0, B: 1, C: 2, D: 3, F: 4 };
+// "A minimal passing grade" per project policy: A-C continue (warnings only), D-F block CI
+// once this template's own CI is scaffolded to check the doctor script's exit code.
+const MIN_PASSING_GRADE = 'C';
 
-  if (criticalFails > 0) {
-    return buildBadge('Project Health', `${criticalFails} Failing`, 'red');
-  }
-  if (warnings > 0) {
-    return buildBadge(
-      'Project Health',
-      `${warnings} Warning${warnings === 1 ? '' : 's'}`,
-      'yellow',
-    );
-  }
-  return buildBadge('Project Health', 'All Clear', 'brightgreen');
+const computeGrade = (results) => {
+  const blocking = results.filter((r) => !r.allowFail);
+  const blockingErrors = blocking.reduce((sum, r) => sum + (r.errorCount ?? r.count), 0);
+  const blockingWarnings = blocking.reduce((sum, r) => sum + (r.warningCount ?? 0), 0);
+  const buildFailed = results.some((r) => r.name === 'Build & Bundle Size' && !r.success);
+
+  const auditResult = results.find((r) => r.name === 'NPM Audit');
+  const criticalOrHigh =
+    (auditResult?.severityBreakdown?.critical ?? 0) + (auditResult?.severityBreakdown?.high ?? 0);
+
+  let grade;
+  if (buildFailed) grade = 'F';
+  else if (blockingErrors === 0 && blockingWarnings === 0) grade = 'A';
+  else if (blockingErrors === 0 && blockingWarnings <= 5) grade = 'B';
+  else if (blockingErrors <= 5) grade = 'C';
+  else if (blockingErrors <= 20) grade = 'D';
+  else grade = 'F';
+
+  if (criticalOrHigh > 0 && (grade === 'A' || grade === 'B')) grade = 'C';
+
+  return { grade, blockingErrors, blockingWarnings, criticalOrHigh, buildFailed };
 };
 
 const groupByCategory = (results) => {
@@ -493,13 +733,33 @@ const groupByCategory = (results) => {
   }));
 };
 
-const generateMarkdown = (results) => {
+const renderIssuesList = (issues, totalCount) => {
+  const truncated = totalCount > issues.length;
+  let md = `<details>\n<summary>View ${issues.length} issue${issues.length === 1 ? '' : 's'}${truncated ? ' (truncated)' : ''}</summary>\n\n`;
+  issues.forEach((issue) => {
+    const location = issue.file
+      ? issue.line
+        ? `\`${issue.file}:${issue.line}\``
+        : `\`${issue.file}\``
+      : '';
+    const rule = issue.rule ? ` _(${issue.rule})_` : '';
+    md += `- ${location} — ${issue.message}${rule}\n`;
+  });
+  md += `\n</details>\n\n`;
+  return md;
+};
+
+const generateMarkdown = (results, grade) => {
   const date = new Date().toLocaleString();
   const categories = groupByCategory(results);
 
   let md = `# 🏥 Project Health Dashboard\n`;
   md += `*Generated on: ${date}*\n\n`;
-  md += `${buildOverallBadge(results)}\n\n`;
+  md += `## ${GRADE_ICON[grade.grade]} Overall Grade: ${grade.grade}\n\n`;
+  md += `${buildBadge('Project Health', `Grade ${grade.grade}`, GRADE_BADGE_COLOR[grade.grade])}\n\n`;
+  md += `| Blocking Errors | Blocking Warnings | Critical/High Vulnerabilities |\n`;
+  md += `| :---: | :---: | :---: |\n`;
+  md += `| ${grade.blockingErrors} | ${grade.blockingWarnings} | ${grade.criticalOrHigh} |\n\n`;
 
   if (isBoilerplateMode) {
     md += `> ⚠️ **Boilerplate Mode Detected** — \`.templateScripts/\` is still present, so this project hasn't been scaffolded yet. `;
@@ -533,48 +793,39 @@ const generateMarkdown = (results) => {
 
       if (res.success && res.count === 0 && !res.alwaysShowOutput) {
         md += `*Completed successfully with no issues.*\n\n`;
-      } else {
-        if (!res.success && res.fixCommand) {
-          md += `> 💡 **Recommendation:** Run \`${res.fixCommand}\` to attempt an auto-fix for some of these issues.\n`;
-          md += `> *(Note: This command may not be able to automatically fix all errors. Manual intervention may still be required).* \n\n`;
-        }
+        return;
+      }
 
+      if (!res.success && res.fixCommand) {
+        md += `> 💡 **Recommendation:** Run \`${res.fixCommand}\` to attempt an auto-fix for some of these issues.\n`;
+        md += `> *(Note: This command may not be able to automatically fix all errors. Manual intervention may still be required).* \n\n`;
+      }
+
+      if (res.name === 'NPM Audit' && res.severityBreakdown) {
+        const parts = Object.entries(res.severityBreakdown)
+          .filter(([severity, severityCount]) => severity !== 'total' && severityCount > 0)
+          .map(([severity, severityCount]) => `**${severity}**: ${severityCount}`);
+        md += `Vulnerabilities by severity: ${parts.length ? parts.join(', ') : 'none'}\n\n`;
+      }
+
+      if (res.issues) {
+        if (res.issues.length > 0) {
+          md += renderIssuesList(res.issues, res.count);
+        }
+      } else {
         md += `<details>\n<summary>View Output Log</summary>\n\n`;
 
         const cleanStdout = cleanNpmBoilerplate(stripAnsi(res.stdout));
         const cleanStderr = cleanNpmBoilerplate(stripAnsi(res.stderr));
-        const combinedOutput = (cleanStdout + '\n' + cleanStderr).trim();
 
-        if (res.name.includes('Prettier') && combinedOutput) {
-          const warnLines = combinedOutput.split('\n').filter((l) => l.includes('[warn]'));
-          const errorLines = combinedOutput.split('\n').filter((l) => l.includes('[error]'));
+        if (cleanStdout) {
+          md += `#### Output\n`;
+          md += `\`\`\`text\n${cleanStdout}\n\`\`\`\n\n`;
+        }
 
-          if (warnLines.length > 0) {
-            md += `#### Unformatted Files\n`;
-            warnLines.forEach((l) => {
-              md += `- \`${l.replace('[warn]', '').trim()}\`\n`;
-            });
-            md += `\n`;
-          }
-
-          if (errorLines.length > 0) {
-            md += `#### Syntax Errors\n`;
-            md += `\`\`\`text\n${errorLines.join('\n')}\n\`\`\`\n\n`;
-          }
-
-          if (warnLines.length === 0 && errorLines.length === 0) {
-            md += `#### Output\n\`\`\`text\n${combinedOutput}\n\`\`\`\n\n`;
-          }
-        } else {
-          if (cleanStdout) {
-            md += `#### Output\n`;
-            md += `\`\`\`text\n${cleanStdout}\n\`\`\`\n\n`;
-          }
-
-          if (cleanStderr) {
-            md += `#### Error Log\n`;
-            md += `\`\`\`text\n${cleanStderr}\n\`\`\`\n\n`;
-          }
+        if (cleanStderr) {
+          md += `#### Error Log\n`;
+          md += `\`\`\`text\n${cleanStderr}\n\`\`\`\n\n`;
         }
 
         md += `</details>\n\n`;
@@ -591,25 +842,58 @@ const main = async () => {
 
   for (const check of checks) {
     console.log(`⏳ Running: ${check.name}...`);
-    const result = check.type === 'custom' ? await check.run() : await runCommand(check.command);
-
-    const count =
-      check.type === 'custom' ? result.count : check.parse(`${result.stdout}\n${result.stderr}`);
-
-    results.push({ ...check, ...result, count });
+    const result = await check.run();
+    results.push({ ...check, ...result });
 
     if (result.success) {
-      console.log(`  ✅ Passed (Found ${count} issues)\n`);
+      console.log(`  ✅ Passed (Found ${result.count} issues)\n`);
     } else {
-      console.log(`  ${check.allowFail ? '⚠️ Warned' : '❌ Failed'} (Found ${count} issues)\n`);
+      console.log(
+        `  ${check.allowFail ? '⚠️ Warned' : '❌ Failed'} (Found ${result.count} issues)\n`,
+      );
     }
   }
 
-  console.log('📝 Generating health-report.md...');
-  const mdContent = generateMarkdown(results);
+  const grade = computeGrade(results);
+
+  console.log('📝 Generating health-report.md and health-report.json...');
+  const mdContent = generateMarkdown(results, grade);
   fs.writeFileSync(reportPath, mdContent, 'utf8');
+
+  const jsonReport = {
+    generatedAt: new Date().toISOString(),
+    boilerplateMode: isBoilerplateMode,
+    grade: grade.grade,
+    blockingErrors: grade.blockingErrors,
+    blockingWarnings: grade.blockingWarnings,
+    criticalOrHighVulnerabilities: grade.criticalOrHigh,
+    checks: results.map((r) => ({
+      name: r.name,
+      category: r.category,
+      allowFail: r.allowFail,
+      success: r.success,
+      count: r.count,
+      errorCount: r.errorCount ?? r.count,
+      warningCount: r.warningCount ?? 0,
+    })),
+  };
+  fs.writeFileSync(reportJsonPath, JSON.stringify(jsonReport, null, 2), 'utf8');
+
+  console.log(`\n${GRADE_ICON[grade.grade]} Overall grade: ${grade.grade}`);
+
+  if (GRADE_RANK[grade.grade] > GRADE_RANK[MIN_PASSING_GRADE]) {
+    console.log(
+      `❌ Grade ${grade.grade} is below the minimum passing grade (${MIN_PASSING_GRADE}).`,
+    );
+    process.exitCode = 1;
+  } else {
+    console.log(`✅ Grade ${grade.grade} meets the minimum passing grade (${MIN_PASSING_GRADE}).`);
+  }
 
   console.log(`\n🎉 Done! Open 'health-report.md' in your IDE to view the dashboard.`);
 };
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});
