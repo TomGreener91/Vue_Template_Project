@@ -21,7 +21,8 @@
     "deps:all": "npm run deps:audit && npm run deps:outdated",
     "deps:upgrade:minor": "npx npm-check-updates -u --target minor --peer && npm install",
     "deps:upgrade:latest": "npx npm-check-updates -u --peer && npm install",
-    "deps:upgrade:interactive": "npx npm-check-updates -i --peer"
+    "deps:upgrade:interactive": "npx npm-check-updates -i --peer",
+    "prepare": "husky"
   },
   "dependencies": {
     "pinia": "^3.0.4",
@@ -29,6 +30,8 @@
     "vue-router": "^5.0.7"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^9.21.0",
     "@greener-games/vite-csp": "^1.0.0",
     "@greener-games/vite-deterministic-port": "^1.0.0",
@@ -47,6 +50,8 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.1",
     "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "postcss-html": "^1.8.1",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
