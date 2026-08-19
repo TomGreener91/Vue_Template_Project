@@ -8,6 +8,13 @@ on:
       - dev
       - development
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  pages: write
+  id-token: write
+
 jobs:
   release:
     name: Create Release
