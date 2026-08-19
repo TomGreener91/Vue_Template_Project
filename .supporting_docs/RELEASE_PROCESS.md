@@ -10,7 +10,7 @@ The release process relies on a tightly coupled architecture using `workflow_cal
 
 The primary orchestrator is `.github/workflows/release.yml`.
 
-- **Trigger:** Pushing commits or merging pull requests into `master`, `main`, `dev`, or `development`.
+- **Trigger:** Successful completion of the `CI` workflow on `master`, `main`, `dev`, or `development` (or manual `workflow_dispatch`). Ensures releases only run when all builds and tests pass.
 - **Process:**
   1. The workflow spins up and runs `semantic-release`.
   2. `semantic-release` parses your commit history looking for [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat:`, `fix:`, `BREAKING CHANGE:`).

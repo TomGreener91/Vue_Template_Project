@@ -1,12 +1,16 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
     branches:
       - master
       - main
       - dev
       - development
+    types:
+      - completed
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,13 +22,11 @@ permissions:
 jobs:
   release:
     name: Create Release
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
     runs-on: ubuntu-latest
-    # Prevent this workflow from running on forks
-    if: github.event.repository.fork == false
+    # Prevent this workflow from running on forks and ensure CI succeeded (or manual dispatch was used)
+    if: >-
+      github.event.repository.fork == false &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
@@ -32,6 +34,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # In workflow_run, checkout the specific branch that triggered the CI run
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
           # This is required to analyze the commit history
           fetch-depth: 0
 
