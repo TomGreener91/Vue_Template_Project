@@ -6,12 +6,12 @@
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
+      "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
@@ -20,14 +20,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^20.12.5",
-    "typescript": "^5.4.4",
-    "vite": "^8.0.13",
-    "vite-plugin-dts": "^4.0.0"
+    "tsup": "^8.3.0",
+    "typescript": "^5.4.4"
   }
 }
