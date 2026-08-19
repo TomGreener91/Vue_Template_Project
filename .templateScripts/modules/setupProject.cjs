@@ -103,6 +103,22 @@ async function setupProject() {
     "build": "vue-tsc --noEmit && vite build"
   });
 
+  // Clean up unused plugin pkgRoot entry from .releaserc.json if present
+  const releasercPath = path.join(projectRoot, '.releaserc.json');
+  if (fs.existsSync(releasercPath)) {
+    try {
+      const releaserc = JSON.parse(fs.readFileSync(releasercPath, 'utf-8'));
+      if (releaserc.plugins) {
+        releaserc.plugins = releaserc.plugins.filter(
+          (p) => !(Array.isArray(p) && p[0] === '@semantic-release/npm' && p[1] && p[1].pkgRoot && p[1].pkgRoot.includes('{{PLUGIN_NAME}}'))
+        );
+        fs.writeFileSync(releasercPath, JSON.stringify(releaserc, null, 2));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   // Copy root README.md for the web app
   const readmeSrc = path.join(templatesDir, 'web-app', 'README.md');
   const readmeDest = path.join(projectRoot, 'README.md');

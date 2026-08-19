@@ -20,7 +20,7 @@
     [
       "@semantic-release/npm",
       {
-        "pkgRoot": "plugins/{{plugin_name}}",
+        "pkgRoot": "plugins/{{PLUGIN_NAME}}",
         "npmPublish": false
       }
     ],

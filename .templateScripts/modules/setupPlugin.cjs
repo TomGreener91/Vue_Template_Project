@@ -269,6 +269,23 @@ async function setupPlugin() {
   // Automatically update workspaces in package.json
   updateWorkspaces();
 
+  // Update .releaserc.json with the plugin name
+  const releasercPath = path.join(projectRoot, '.releaserc.json');
+  if (fs.existsSync(releasercPath)) {
+    try {
+      if (IS_DEBUG) {
+        console.log(`[DEBUG] Would update .releaserc.json with plugin name: ${pluginName}`);
+      } else {
+        let content = fs.readFileSync(releasercPath, 'utf-8');
+        content = content.replace(/\{\{PLUGIN_NAME\}\}/g, pluginName);
+        fs.writeFileSync(releasercPath, content);
+        console.log(`Updated .releaserc.json with plugin name: ${pluginName}`);
+      }
+    } catch (e) {
+      console.error('Failed to update .releaserc.json:', e.message);
+    }
+  }
+
   // Ensure root build script can handle workspaces, building workspaces FIRST
   updateRootPackageScripts({
     "build:app": "vue-tsc --noEmit && vite build",

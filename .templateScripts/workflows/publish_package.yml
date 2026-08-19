@@ -36,20 +36,20 @@ jobs:
           build-command: 'npm run build'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish Package (Real)
+      - name: Publish Package (Real - Master / Production Only)
         if: github.event_name != 'pull_request' && !contains(inputs.version, '-dev')
         run: npm publish --workspace plugins/{{PLUGIN_NAME}} --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish Package (Dry Run)
-        if: github.event_name == 'pull_request'
+      - name: Publish Package (Dry Run - PRs & Dev / Staging)
+        if: github.event_name == 'pull_request' || contains(inputs.version, '-dev')
         run: npm publish --workspace plugins/{{PLUGIN_NAME}} --access public --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Deploy Docs
-        if: env.DEPLOY_DOCS == 'true' && github.event_name != 'pull_request'
+        if: env.DEPLOY_DOCS == 'true' && github.event_name != 'pull_request' && !contains(inputs.version, '-dev')
         uses: ./.github/actions/deploy-github-pages
         with:
           build-command: 'npm run docs:build --workspace plugins/{{PLUGIN_NAME}} --if-present'
