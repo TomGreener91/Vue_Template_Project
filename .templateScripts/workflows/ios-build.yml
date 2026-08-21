@@ -30,6 +30,9 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync ios
 
+      - name: Patch Native Config
+        run: npm run cap:patch
+
       - name: Build iOS App
         working-directory: ./ios/App
         run: |

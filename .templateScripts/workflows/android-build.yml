@@ -36,6 +36,9 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Patch Native Config
+        run: npm run cap:patch
+
       - name: Build APK
         working-directory: ./android
         run: |
