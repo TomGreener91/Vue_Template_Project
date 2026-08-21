@@ -31,11 +31,12 @@ async function setupCapacitor() {
 
   // Update package.json scripts
   updateRootPackageScripts({
-    "cap:sync": "npx cap sync",
+    "cap:sync": "npm run build && npx cap sync",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
-    "cap:build:android": "npx cap build android",
-    "cap:build:ios": "npx cap build ios",
+    "cap:build:android": "npm run build && npx cap build android",
+    "cap:build:ios": "npm run build && npx cap build ios",
+    "cap:build:android-debug": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
     "cap:patch": "node scripts/patch-android.js && node scripts/patch-ios.js"

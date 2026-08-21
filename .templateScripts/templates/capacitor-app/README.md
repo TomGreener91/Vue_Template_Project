@@ -20,13 +20,7 @@ npm run dev
 
 ## Capacitor Build Process
 
-Before running or syncing the app with Capacitor, you must first build the Vue web assets:
-
-```bash
-npm run build
-```
-
-Then sync the web assets to the native projects:
+To build the Vue web assets and sync them to the native projects in one step, run:
 
 ```bash
 npm run cap:sync
@@ -58,9 +52,23 @@ npm run cap:open:ios
 
 ## Production Builds
 
-Use Capacitor to build the native apps:
+Use Capacitor to build the native apps (release builds — these require your own signing/keystore configuration):
 
 ```bash
 npm run cap:build:android
 npm run cap:build:ios
 ```
+
+## Local Debug APK (no Android Studio needed)
+
+To sync and build an installable debug APK from the command line — the same process the CI pipeline uses — run:
+
+```bash
+npm run cap:build:android-debug
+```
+
+This produces an unsigned debug build (using the auto-generated debug keystore) at `android/app/build/outputs/apk/debug/*.apk`. On Windows, run this via Git Bash (not PowerShell/cmd), since it calls the `gradlew` wrapper script directly.
+
+## CI/CD
+
+If configured, GitHub Actions workflows under `.github/workflows/` (`android-build.yml` / `ios-build.yml`) build a debug APK/app on every push and upload it as a workflow artifact. For these to work, the `android/` and/or `ios/` native platform folders must be committed to the repository — run `npx cap add android` / `npx cap add ios`, then `npm run cap:patch`, then commit the resulting folders before pushing.
