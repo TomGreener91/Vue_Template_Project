@@ -6,7 +6,8 @@ const {
   IS_DEBUG,
   copyDirectoryRecursive,
   updateRootPackageScripts,
-  setupReleaseWorkflow
+  copyCompositeAction,
+  setupPipelineWorkflow
 } = require('../utils.cjs');
 
 /**
@@ -31,43 +32,32 @@ async function setupElectron() {
     fs.copyFileSync(forgeConfigSrc, forgeConfigDest);
   }
 
-  const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
-  if (!fs.existsSync(workflowDestDir)) {
-    if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
-  }
+  // Copy composite actions needed for Electron
+  copyCompositeAction('setup-node-build');
+  copyCompositeAction('release-electron');
 
-  // Copy specialized release workflow
-  const releaseWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_electron.yml');
-  const releaseWorkflowDest = path.join(workflowDestDir, 'publish_electron.yml');
+  // Define the Electron release job YAML
+  const deployJobYaml = `  release-electron:
+    name: Build & Release Electron (\${{ matrix.os }})
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: \${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
 
-  if (fs.existsSync(releaseWorkflowSrc)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy publish_electron.yml to ${releaseWorkflowDest}`);
-    } else {
-      fs.copyFileSync(releaseWorkflowSrc, releaseWorkflowDest);
-      console.log('Copied Electron GitHub Actions workflow.');
-    }
-  }
+      - name: Build & Upload Release
+        uses: ./.github/actions/release-electron
+        with:
+          version: \${{ needs.release.outputs.new_release_version }}`;
 
-  // Copy standard CI workflow
-  const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
-  const ciWorkflowDest = path.join(workflowDestDir, 'ci.yml');
-
-  if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
-    try {
-      if (IS_DEBUG) {
-        console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-      } else {
-        fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-        console.log('Copied standard CI GitHub Actions workflow.');
-      }
-    } catch (e) {
-      console.error('Failed to copy ci.yml:', e.message);
-    }
-  }
-
-  // Copy standard release workflow
-  await setupReleaseWorkflow('publish_electron.yml');
+  // Set up the unified pipeline workflow
+  await setupPipelineWorkflow(deployJobYaml);
 
   // Update package.json scripts
   updateRootPackageScripts({

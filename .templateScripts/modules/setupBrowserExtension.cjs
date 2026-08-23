@@ -6,7 +6,8 @@ const {
   IS_DEBUG,
   copyDirectoryRecursive,
   updateRootPackageScripts,
-  setupReleaseWorkflow
+  copyCompositeAction,
+  setupPipelineWorkflow
 } = require('../utils.cjs');
 
 /**
@@ -23,43 +24,29 @@ async function setupBrowserExtension() {
   );
   copyDirectoryRecursive(path.join(extensionTemplateDir, 'src'), path.join(projectRoot, 'src'), {});
   
-  const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
-  if (!fs.existsSync(workflowDestDir)) {
-    if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
-  }
+  // Copy composite actions needed for browser extension
+  copyCompositeAction('setup-node-build');
+  copyCompositeAction('release-extension');
 
-  // Copy specialized release workflow
-  const releaseWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_extension.yml');
-  const releaseWorkflowDest = path.join(workflowDestDir, 'publish_extension.yml');
+  // Define the Browser Extension release job YAML
+  const deployJobYaml = `  release-extension:
+    name: Package & Release Extension
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
 
-  if (fs.existsSync(releaseWorkflowSrc)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy publish_extension.yml to ${releaseWorkflowDest}`);
-    } else {
-      fs.copyFileSync(releaseWorkflowSrc, releaseWorkflowDest);
-      console.log('Copied Browser Extension GitHub Actions workflow.');
-    }
-  }
+      - name: Build & Upload Release
+        uses: ./.github/actions/release-extension
+        with:
+          version: \${{ needs.release.outputs.new_release_version }}`;
 
-  // Copy standard CI workflow
-  const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
-  const ciWorkflowDest = path.join(workflowDestDir, 'ci.yml');
-
-  if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
-    try {
-      if (IS_DEBUG) {
-        console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-      } else {
-        fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-        console.log('Copied standard CI GitHub Actions workflow.');
-      }
-    } catch (e) {
-      console.error('Failed to copy ci.yml:', e.message);
-    }
-  }
-
-  // Copy standard release workflow
-  await setupReleaseWorkflow('publish_extension.yml');
+  // Set up the unified pipeline workflow
+  await setupPipelineWorkflow(deployJobYaml);
 
   // Ensure root build script handles standard builds
   updateRootPackageScripts({

@@ -1,0 +1,47 @@
+name: 'Deploy to Azure Static Web Apps'
+description: 'Deploys the web application to Azure Static Web Apps'
+
+inputs:
+  azure-token:
+    description: 'Azure Static Web Apps deployment API token'
+    required: true
+  action:
+    description: 'Deployment action: upload or close'
+    required: false
+    default: 'upload'
+  app-location:
+    description: 'App source code path'
+    required: false
+    default: '/'
+  output-location:
+    description: 'Built app content directory'
+    required: false
+    default: 'dist'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine Target Environment
+      id: deploy_env
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "env_name=preview" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == *"dev"* ]]; then
+          echo "env_name=staging" >> $GITHUB_OUTPUT
+        else
+          echo "env_name=production" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Deploy to Azure Static Web Apps
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ inputs.azure-token }}
+        repo_token: ${{ github.token }}
+        action: ${{ inputs.action }}
+        app_location: ${{ inputs.app-location }}
+        api_location: ''
+        output_location: ${{ inputs.output-location }}
+        skip_app_build: true
+        production_branch: 'main'
+        deployment_environment: ${{ steps.deploy_env.outputs.env_name }}

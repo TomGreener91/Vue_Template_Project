@@ -11,7 +11,8 @@ const {
   toCamelCase,
   copyDirectoryRecursive,
   updateRootPackageScripts,
-  setupReleaseWorkflow
+  copyCompositeAction,
+  setupPipelineWorkflow
 } = require('../utils.cjs');
 
 /**
@@ -57,7 +58,6 @@ function addPluginToMainTs(pluginName, importName, defaultExport = true) {
 
   let content = fs.readFileSync(mainTsPath, 'utf-8');
 
-  // If standard plugin or component library, we might use default import
   const importStatement = defaultExport 
     ? `import ${importName} from '${pluginName}'\n`
     : `import { ${importName} } from '${pluginName}'\n`;
@@ -95,14 +95,14 @@ async function setupPlugin() {
 
   // Ask for plugin type
   console.log('');
-  let pluginType = await selectOption('What type of package are you creating?', [
+  const pluginType = await selectOption('What type of package are you creating?', [
     { label: 'Vue Component Library (UI Components)', value: 'component-library' },
     { label: 'Vue App Plugin (Provides app.use() install hook)', value: 'vue-plugin' },
     { label: 'Standard Code/Utils Library (No Vue dependency)', value: 'utils-library' },
     { label: 'Vite Plugin (Build tool extension)', value: 'vite-plugin' },
   ]);
 
-  let templateName = pluginType;
+  const templateName = pluginType;
 
   console.log('');
   const deployDocs = await selectOption(
@@ -167,102 +167,46 @@ async function setupPlugin() {
     }
   }
 
-  // Handle workflow copying for non-NPM plugins (e.g., Browser Extensions, Electron)
-  const workflowSrcDir = path.join(newPluginDir, '.github', 'workflows');
-  const rootWorkflowDestDir = path.join(projectRoot, '.github', 'workflows');
-
-  if (fs.existsSync(workflowSrcDir)) {
-      if (!fs.existsSync(rootWorkflowDestDir)) {
-         if (!IS_DEBUG) fs.mkdirSync(rootWorkflowDestDir, { recursive: true });
-      }
-
-      const files = fs.readdirSync(workflowSrcDir);
-      for (const file of files) {
-          const srcFile = path.join(workflowSrcDir, file);
-          const destFile = path.join(rootWorkflowDestDir, file);
-          
-          if (!fs.existsSync(destFile)) {
-              try {
-                  if (IS_DEBUG) {
-                      console.log(`[DEBUG] Would copy ${file} to ${destFile}`);
-                  } else {
-                      fs.copyFileSync(srcFile, destFile);
-                      console.log(`Copied ${file} GitHub Actions workflow.`);
-                  }
-              } catch (e) {
-                  console.error(`Failed to copy workflow ${file}:`, e.message);
-              }
-          } else {
-              console.log(`Workflow ${file} already exists at root, skipping copy.`);
-          }
-      }
-      
-      // Remove the .github directory from the plugin folder since it doesn't belong there
-      if (!IS_DEBUG) {
-          fs.rmSync(path.join(newPluginDir, '.github'), { recursive: true, force: true });
-      } else {
-           console.log(`[DEBUG] Would remove .github from plugin directory ${newPluginDir}`);
-      }
+  // Copy composite actions needed for plugin release
+  copyCompositeAction('setup-node-build');
+  copyCompositeAction('publish-npm');
+  if (deployDocs === 'y') {
+    copyCompositeAction('deploy-github-pages');
   }
 
-  // We now use publish_package.yml directly. `setupReleaseWorkflow` will link it.
+  // Define the publish job YAML
+  const deployJobYaml = `  publish-npm:
+    name: Publish NPM Package
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
 
-  // Ensure standard CI workflow is copied if setting up the first plugin
-  const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
-  const ciWorkflowDest = path.join(rootWorkflowDestDir, 'ci.yml');
+      - name: Setup Node and Build
+        uses: ./.github/actions/setup-node-build
+        with:
+          build-command: 'npm run build'
+          registry-url: 'https://registry.npmjs.org'
 
-  if (!fs.existsSync(rootWorkflowDestDir)) {
-    if (!IS_DEBUG) fs.mkdirSync(rootWorkflowDestDir, { recursive: true });
-  }
+      - name: Publish Package & Docs
+        uses: ./.github/actions/publish-npm
+        with:
+          npm-token: \${{ secrets.NPM_TOKEN }}
+          workspace-path: 'plugins/{{PLUGIN_NAME}}'
+          version: \${{ needs.release.outputs.new_release_version }}
+          deploy-docs: '{{DEPLOY_DOCS}}'
+          docs-build-command: 'npm run docs:build --workspace plugins/{{PLUGIN_NAME}} --if-present'
+          docs-dist-path: './plugins/{{PLUGIN_NAME}}/docs/.vitepress/dist'`;
 
-  if (fs.existsSync(ciWorkflowSrc) && !fs.existsSync(ciWorkflowDest)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-    } else {
-      fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-      console.log('Copied standard CI GitHub Actions workflow.');
-    }
-  }
-
-  // Ensure the publish_package workflow is copied for this plugin
-  const publishWorkflowSrc = path.join(__dirname, '..', 'workflows', 'publish_package.yml');
-  const publishWorkflowDest = path.join(rootWorkflowDestDir, 'publish_package.yml');
-  if (fs.existsSync(publishWorkflowSrc)) {
-    try {
-      if (IS_DEBUG) {
-        console.log(`[DEBUG] Would configure publish_package.yml to ${publishWorkflowDest}`);
-      } else {
-        let publishContent = fs.readFileSync(publishWorkflowSrc, 'utf-8');
-        publishContent = publishContent.replace(/\{\{PLUGIN_NAME\}\}/g, pluginName);
-        publishContent = publishContent.replace(/\{\{DEPLOY_DOCS\}\}/g, deployDocs === 'y' ? 'true' : 'false');
-        fs.writeFileSync(publishWorkflowDest, publishContent);
-        console.log(`Copied and configured publish_package.yml workflow for ${pluginName}.`);
-      }
-    } catch (e) {
-      console.error('Failed to configure publish_package.yml:', e.message);
-    }
-  }
-
-  // Ensure all composite actions are copied to .github/actions
-  const actionsSrcDir = path.join(__dirname, '..', 'workflows', 'actions');
-  const actionsDestDir = path.join(projectRoot, '.github', 'actions');
-  if (fs.existsSync(actionsSrcDir)) {
-    try {
-      if (IS_DEBUG) {
-        console.log(`[DEBUG] Would copy composite actions from ${actionsSrcDir} to ${actionsDestDir}`);
-      } else {
-        copyDirectoryRecursive(actionsSrcDir, actionsDestDir, {});
-        console.log('Copied all composite actions to .github/actions.');
-      }
-    } catch (e) {
-      console.error('Failed to copy composite actions:', e.message);
-    }
-  }
-
-  // Copy standard release workflow and link it to publish_package.yml
-  await setupReleaseWorkflow('publish_package.yml');
-
-  // Removed separate deployDocs workflow copying in favor of consolidated publish_package.yml
+  // Set up the unified pipeline workflow
+  await setupPipelineWorkflow(deployJobYaml, {
+    '{{PLUGIN_NAME}}': pluginName,
+    '{{DEPLOY_DOCS}}': deployDocs === 'y' ? 'true' : 'false'
+  });
 
   console.log(`Plugin "${pluginName}" created at plugins/${pluginName}`);
 
@@ -300,13 +244,12 @@ async function setupPlugin() {
       'Do you want to automatically add this plugin to main.ts using app.use()?',
       [
         { label: 'Yes', value: 'y' },
-        { label: 'No', 'value': 'n' },
+        { label: 'No', value: 'n' },
       ],
     );
     if (addToMain === 'y') {
       const pascalName = toPascalCase(pluginName);
       if (pluginType === 'vue-plugin') {
-        // Vue plugins might export a specific named object or default
         addPluginToMainTs(pluginName, `${pascalName}Plugin`, true);
       } else {
         addPluginToMainTs(pluginName, `${pascalName}Plugin`, true);

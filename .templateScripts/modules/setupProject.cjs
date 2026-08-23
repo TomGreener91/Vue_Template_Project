@@ -5,98 +5,148 @@ const {
   projectRoot,
   IS_DEBUG,
   updateRootPackageScripts,
-  setupReleaseWorkflow
+  copyCompositeAction,
+  setupPipelineWorkflow,
+  selectOption
 } = require('../utils.cjs');
-
-const { askQuestion, selectOption } = require('../utils.cjs');
 
 /**
  * Orchestrates the setup of a main web app project.
- * Handles copying specific workflow files (CI, Deployment) depending on the selected hosting platform.
+ * Copies required composite actions and sets up the single unified CI/CD pipeline.
  */
 async function setupProject() {
   console.log('\nSetting up for Project Development...');
 
-  const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
-  if (!fs.existsSync(workflowDestDir)) {
-    if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
-  }
-
-  const actionsDestDir = path.join(projectRoot, '.github', 'actions', 'setup-node-build');
-  if (!fs.existsSync(actionsDestDir)) {
-    if (!IS_DEBUG) fs.mkdirSync(actionsDestDir, { recursive: true });
-  }
-
-  // Copy Reusable Setup Node Build action
-  const actionSrc = path.join(__dirname, '..', 'workflows', 'actions', 'setup-node-build', 'action.yml');
-  const actionDest = path.join(actionsDestDir, 'action.yml');
-  if (fs.existsSync(actionSrc)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy action.yml to ${actionDest}`);
-    } else {
-      fs.copyFileSync(actionSrc, actionDest);
-      console.log('Copied setup-node-build composite action.');
-    }
-  }
+  // Always copy base setup-node-build action
+  copyCompositeAction('setup-node-build');
 
   // Ask for Hosting Platform
   console.log('');
-  let hostingPlatform = await selectOption('Which hosting platform would you like to use for deployment?', [
+  const hostingPlatform = await selectOption('Which hosting platform would you like to use for deployment?', [
     { label: 'GitHub Pages', value: 'github-pages' },
     { label: 'Firebase Hosting', value: 'firebase' },
     { label: 'Azure Static Web Apps', value: 'azure' },
     { label: 'None / Skip', value: 'none' },
   ]);
 
-  if (hostingPlatform !== 'none') {
-    const hostingWorkflowsDir = path.join(__dirname, '..', 'workflows', 'hosting');
-    let workflowsToCopy = [];
+  let deployJobYaml = '';
 
-    if (hostingPlatform === 'github-pages') {
-      workflowsToCopy.push({ src: 'github-pages.yml', dest: 'deploy-webapp.yml' });
-    } else if (hostingPlatform === 'firebase') {
-      workflowsToCopy.push({ src: 'firebase.yml', dest: 'deploy-webapp.yml' });
-    } else if (hostingPlatform === 'azure') {
-      workflowsToCopy.push({ src: 'azure.yml', dest: 'deploy-webapp.yml' });
-    }
+  if (hostingPlatform === 'github-pages') {
+    copyCompositeAction('deploy-github-pages');
+    deployJobYaml = `  deploy-github-pages:
+    name: Deploy to GitHub Pages
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: 'pages'
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
 
-    for (const wf of workflowsToCopy) {
-      const srcPath = path.join(hostingWorkflowsDir, wf.src);
-      const destPath = path.join(workflowDestDir, wf.dest);
-      if (fs.existsSync(srcPath)) {
-        try {
-          if (IS_DEBUG) {
-            console.log(`[DEBUG] Would copy ${wf.src} to ${destPath}`);
-          } else {
-            fs.copyFileSync(srcPath, destPath);
-            console.log(`Copied ${hostingPlatform} workflow as ${wf.dest}`);
-          }
-        } catch (e) {
-          console.error(`Failed to copy workflow ${wf.src}:`, e.message);
-        }
-      }
-    }
+      - name: Deploy
+        id: deployment
+        uses: ./.github/actions/deploy-github-pages
+        with:
+          build-command: 'npm run build'
+          dist-path: './dist'`;
+  } else if (hostingPlatform === 'firebase') {
+    copyCompositeAction('deploy-firebase');
+    deployJobYaml = `  deploy-firebase-preview:
+    name: Firebase PR Preview Deploy
+    needs: code-health
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup & Build
+        uses: ./.github/actions/setup-node-build
+        with:
+          build-command: 'npm run build'
+
+      - name: Deploy to Firebase Preview Channel
+        uses: ./.github/actions/deploy-firebase
+        with:
+          firebase-service-account: \${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          project-id: \${{ secrets.FIREBASE_PROJECT_ID }}
+
+  deploy-firebase:
+    name: Deploy to Firebase Hosting
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
+
+      - name: Setup & Build
+        uses: ./.github/actions/setup-node-build
+        with:
+          build-command: 'npm run build'
+
+      - name: Deploy to Firebase
+        uses: ./.github/actions/deploy-firebase
+        with:
+          firebase-service-account: \${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          project-id: \${{ secrets.FIREBASE_PROJECT_ID }}`;
+  } else if (hostingPlatform === 'azure') {
+    copyCompositeAction('deploy-azure');
+    deployJobYaml = `  deploy-azure-preview:
+    name: Azure PR Preview Deploy
+    needs: code-health
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup & Build
+        uses: ./.github/actions/setup-node-build
+        with:
+          build-command: 'npm run build'
+
+      - name: Deploy to Azure Preview
+        uses: ./.github/actions/deploy-azure
+        with:
+          azure-token: \${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+
+  deploy-azure:
+    name: Deploy to Azure Static Web Apps
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v\${{ needs.release.outputs.new_release_version }}
+          submodules: true
+
+      - name: Setup & Build
+        uses: ./.github/actions/setup-node-build
+        with:
+          build-command: 'npm run build'
+
+      - name: Deploy to Azure
+        uses: ./.github/actions/deploy-azure
+        with:
+          azure-token: \${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}`;
   }
 
-  // Copy standard CI workflow
-  const ciWorkflowSrc = path.join(__dirname, '..', 'workflows', 'ci.yml');
-  const ciWorkflowDest = path.join(workflowDestDir, 'ci.yml');
-
-  if (fs.existsSync(ciWorkflowSrc)) {
-    if (IS_DEBUG) {
-      console.log(`[DEBUG] Would copy ci.yml to ${ciWorkflowDest}`);
-    } else {
-      fs.copyFileSync(ciWorkflowSrc, ciWorkflowDest);
-      console.log('Copied standard CI GitHub Actions workflow.');
-    }
-  }
-
-  // Copy standard release workflow
-  if (hostingPlatform !== 'none') {
-    await setupReleaseWorkflow('deploy-webapp.yml');
-  } else {
-    await setupReleaseWorkflow(); // Won't link to a publish job
-  }
+  // Set up the unified pipeline workflow
+  await setupPipelineWorkflow(deployJobYaml);
 
   // Ensure root build script can handle workspaces, building workspaces FIRST
   updateRootPackageScripts({

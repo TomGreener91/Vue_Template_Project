@@ -1,19 +1,27 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
     branches: ['master', 'main', 'dev', 'development']
   pull_request:
     branches: ['master', 'main', 'dev', 'development']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  pages: write
+  id-token: write
+  checks: write
 
 jobs:
   build-and-test:
+    name: Build & Test (${{ matrix.node-version }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Skip CI on automated release commits to prevent infinite loops.
-    # semantic-release pushes a 'chore(release): x.y.z [skip ci]' commit; this
-    # provides an explicit, readable guard in addition to the [skip ci] convention.
+    # Skip on automated release commits to prevent recursive trigger
     if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
 
     strategy:
@@ -36,13 +44,8 @@ jobs:
       - name: Build Root App
         run: npm run build
 
-  # Format/lint/type-check/audit/outdated aren't Node-version-specific, so they run once
-  # here instead of once per matrix leg above. `npm run doctor` grades the result and
-  # fails this job when the grade drops below its minimum passing grade (see
-  # MIN_PASSING_GRADE in scripts/health-check.js) - continue-on-error keeps the summary
-  # and PR-comment steps running afterward so a failing grade still gets full detail
-  # instead of just a bare "job failed".
   code-health:
+    name: Project Doctor & Code Health
     runs-on: ubuntu-latest
     needs: build-and-test
     permissions:
@@ -82,8 +85,6 @@ jobs:
               ? fs.readFileSync('health-report.md', 'utf8')
               : 'Health report was not generated — see the "Run Project Doctor" step logs.';
 
-            // A hidden marker lets us update the same comment on every push instead of
-            // spamming a new one, and to find it again reliably regardless of report content.
             const marker = '<!-- project-doctor-report -->';
             const truncate = (str, max) =>
               str.length > max
@@ -117,3 +118,38 @@ jobs:
       - name: Enforce Minimum Passing Grade
         if: steps.doctor.outcome == 'failure'
         run: exit 1
+
+  release:
+    name: Semantic Release
+    needs: code-health
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.repository.fork == false &&
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development' || github.event_name == 'workflow_dispatch')
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+{{DEPLOY_JOBS}}

@@ -1,0 +1,33 @@
+name: 'Deploy to Firebase Hosting'
+description: 'Deploys the web application to Firebase Hosting preview or live channels'
+
+inputs:
+  firebase-service-account:
+    description: 'Firebase service account credentials'
+    required: true
+  project-id:
+    description: 'Firebase project ID'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine Target Channel
+      id: deploy_env
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "channel_id=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == *"dev"* ]]; then
+          echo "channel_id=staging" >> $GITHUB_OUTPUT
+        else
+          echo "channel_id=live" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Deploy to Firebase
+      uses: FirebaseExtended/action-hosting-deploy@v0
+      with:
+        repoToken: '${{ github.token }}'
+        firebaseServiceAccount: '${{ inputs.firebase-service-account }}'
+        channelId: ${{ steps.deploy_env.outputs.channel_id }}
+        projectId: '${{ inputs.project-id }}'

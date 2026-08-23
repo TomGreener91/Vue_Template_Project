@@ -1,0 +1,46 @@
+name: 'Build and Release Electron App'
+description: 'Builds Electron application installers and uploads artifacts to GitHub Releases'
+
+inputs:
+  version:
+    description: 'The release version tag (without leading v)'
+    required: true
+  build-command:
+    description: 'The build command for Electron make'
+    required: false
+    default: 'npm run electron:make'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node and Make Electron App
+      uses: ./.github/actions/setup-node-build
+      with:
+        build-command: ${{ inputs.build-command }}
+
+    - name: Determine Release Type
+      if: github.event_name != 'pull_request'
+      id: release_type
+      shell: bash
+      run: |
+        if [[ "${{ inputs.version }}" =~ -dev ]]; then
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+          echo "latest=false" >> $GITHUB_OUTPUT
+        else
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+          echo "latest=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload Artifacts to Release
+      if: github.event_name != 'pull_request'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ inputs.version }}
+        files: |
+          out/make/**/*.zip
+          out/make/**/*.exe
+          out/make/**/*.dmg
+          out/make/**/*.deb
+          out/make/**/*.rpm
+        prerelease: ${{ steps.release_type.outputs.prerelease }}
+        make_latest: ${{ steps.release_type.outputs.latest }}

@@ -207,47 +207,52 @@ function updateRootPackageScripts(newScripts) {
 }
 
 /**
- * Copies and configures the standard release.yml workflow, optionally linking a targeted publish job.
- * @param {string} [targetWorkflowName] The filename of the workflow to link to (e.g. publish_package.yml)
+ * Copies a specific composite action from .templateScripts to .github/actions.
+ * @param {string} actionName Directory name of the action (e.g. 'setup-node-build')
  */
-async function setupReleaseWorkflow(targetWorkflowName) {
+function copyCompositeAction(actionName) {
+  const actionSrcDir = path.join(templateScriptsDir, 'workflows', 'actions', actionName);
+  const actionDestDir = path.join(projectRoot, '.github', 'actions', actionName);
+
+  if (fs.existsSync(actionSrcDir)) {
+    copyDirectoryRecursive(actionSrcDir, actionDestDir, {});
+    console.log(`Copied ${actionName} composite action.`);
+  }
+}
+
+/**
+ * Copies and configures the single unified ci-cd.yml workflow with the chosen deploy job.
+ * @param {string} [deployJobYaml] The YAML snippet for the deployment job(s)
+ * @param {Record<string, string>} [replacements] Additional placeholder replacements
+ */
+async function setupPipelineWorkflow(deployJobYaml = '', replacements = {}) {
   const workflowDestDir = path.join(projectRoot, '.github', 'workflows');
   if (!fs.existsSync(workflowDestDir)) {
     if (!IS_DEBUG) fs.mkdirSync(workflowDestDir, { recursive: true });
   }
 
-  const releaseWorkflowSrc = path.join(templateScriptsDir, 'workflows', 'release.yml');
-  const releaseWorkflowDest = path.join(workflowDestDir, 'release.yml');
+  const pipelineSrc = path.join(templateScriptsDir, 'workflows', 'ci-cd.yml');
+  const pipelineDest = path.join(workflowDestDir, 'ci-cd.yml');
 
-  // If a pluginName is provided, we might be setting up a secondary release logic,
-  // or overwriting the root release.yml. In a monorepo, a unified release.yml is often used.
-  // We'll update the placeholder if it exists.
   let content = '';
-  if (fs.existsSync(releaseWorkflowDest)) {
-     content = fs.readFileSync(releaseWorkflowDest, 'utf-8');
-  } else if (fs.existsSync(releaseWorkflowSrc)) {
-     content = fs.readFileSync(releaseWorkflowSrc, 'utf-8');
+  if (fs.existsSync(pipelineSrc)) {
+    content = fs.readFileSync(pipelineSrc, 'utf-8');
   }
 
   if (content) {
-    // Replace the publish workflow placeholder if a targetWorkflowName is provided
-    if (targetWorkflowName) {
-      if (content.includes('publish-placeholder.yml')) {
-          content = content.replace(
-            'uses: ./.github/workflows/publish-placeholder.yml',
-            `uses: ./.github/workflows/${targetWorkflowName}`
-          );
-      } else {
-          console.log(`Note: You may need to manually add ${targetWorkflowName} to your root release.yml if you have multiple setups.`);
-      }
-      console.log(`Linked release workflow to ${targetWorkflowName}`);
+    // Replace the {{DEPLOY_JOBS}} placeholder
+    content = content.replace('{{DEPLOY_JOBS}}', deployJobYaml ? `\n${deployJobYaml}` : '');
+
+    // Apply any additional replacements
+    for (const [key, value] of Object.entries(replacements)) {
+      content = content.split(key).join(value);
     }
 
     if (IS_DEBUG) {
-      console.log(`[DEBUG] Would write release.yml to ${releaseWorkflowDest}`);
+      console.log(`[DEBUG] Would write ci-cd.yml to ${pipelineDest}`);
     } else {
-      fs.writeFileSync(releaseWorkflowDest, content);
-      console.log('Copied and configured release.yml GitHub Actions workflow.');
+      fs.writeFileSync(pipelineDest, content);
+      console.log('Configured unified ci-cd.yml GitHub Actions workflow.');
     }
   }
 }
@@ -265,5 +270,6 @@ module.exports = {
   toCamelCase,
   copyDirectoryRecursive,
   updateRootPackageScripts,
-  setupReleaseWorkflow
+  copyCompositeAction,
+  setupPipelineWorkflow
 };

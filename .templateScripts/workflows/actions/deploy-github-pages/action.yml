@@ -1,13 +1,15 @@
 name: 'Deploy GitHub Pages'
-description: 'Builds and deploys documentation to GitHub Pages'
+description: 'Builds and deploys a web application or documentation to GitHub Pages'
 
 inputs:
   build-command:
-    description: 'Command to build the docs'
-    required: true
+    description: 'Command to build the project/docs'
+    required: false
+    default: 'npm run build'
   dist-path:
     description: 'Path to the built artifacts'
-    required: true
+    required: false
+    default: './dist'
 
 runs:
   using: "composite"
@@ -17,15 +19,16 @@ runs:
       with:
         static_site_generator: 'vite'
 
-    - name: Build Docs
+    - name: Build
+      if: inputs.build-command != ''
       run: ${{ inputs.build-command }}
       shell: bash
 
-    - name: Upload Docs Artifact
+    - name: Upload Artifact
       uses: actions/upload-pages-artifact@v3
       with:
         path: ${{ inputs.dist-path }}
 
-    - name: Deploy Docs to GitHub Pages
+    - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4

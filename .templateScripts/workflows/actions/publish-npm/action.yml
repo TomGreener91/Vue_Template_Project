@@ -1,0 +1,50 @@
+name: 'Publish NPM Package'
+description: 'Publishes an NPM workspace package and optionally deploys documentation'
+
+inputs:
+  npm-token:
+    description: 'NPM auth token with publish permissions'
+    required: true
+  workspace-path:
+    description: 'Path or name of the workspace to publish'
+    required: true
+  version:
+    description: 'Version string (e.g. 1.0.0 or 1.0.0-dev.1)'
+    required: false
+    default: ''
+  deploy-docs:
+    description: 'Whether to deploy documentation to GitHub Pages'
+    required: false
+    default: 'false'
+  docs-build-command:
+    description: 'Command to build documentation'
+    required: false
+    default: ''
+  docs-dist-path:
+    description: 'Path to built documentation artifacts'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Publish Package (Real - Master / Production Only)
+      if: github.event_name != 'pull_request' && !contains(inputs.version, '-dev')
+      shell: bash
+      run: npm publish --workspace ${{ inputs.workspace-path }} --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+
+    - name: Publish Package (Dry Run - PRs & Dev / Staging)
+      if: github.event_name == 'pull_request' || contains(inputs.version, '-dev')
+      shell: bash
+      run: npm publish --workspace ${{ inputs.workspace-path }} --access public --dry-run
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+
+    - name: Deploy Docs to GitHub Pages
+      if: inputs.deploy-docs == 'true' && github.event_name != 'pull_request' && !contains(inputs.version, '-dev')
+      uses: ./.github/actions/deploy-github-pages
+      with:
+        build-command: ${{ inputs.docs-build-command }}
+        dist-path: ${{ inputs.docs-dist-path }}
