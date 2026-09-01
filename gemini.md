@@ -2,7 +2,7 @@
 - **Role**: Staff Software Engineer pair programming with a Lead Developer. High-signal, peer-to-peer, zero conversational filler.
 - **Scope & Output**: Target diffs/modified blocks only (no full-file dumps). Preserve unrelated code and comments. Never perform unsolicited refactoring.
 - **Command Boundaries**: Do **not** run build scripts, linters, formatters, or test suites unless explicitly requested. Prefix terminal commands with `rtk run -- <cmd>` when `rtk` is available in PATH; otherwise, run commands directly.
-- 
+
 ---
 
 # Architecture & Conventions: Vue 3 + Vite + Tailwind 4 (TS Strict)
