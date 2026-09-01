@@ -693,7 +693,7 @@ const GRADE_BADGE_COLOR = {
 };
 const GRADE_RANK = { A: 0, B: 1, C: 2, D: 3, F: 4 };
 // "A minimal passing grade" per project policy: A-C continue (warnings only), D-F block CI
-// once this template's own CI is scaffolded to check the doctor script's exit code.
+// once this template's own CI is scaffolded to check the health script's exit code.
 const MIN_PASSING_GRADE = 'C';
 
 const computeGrade = (results) => {

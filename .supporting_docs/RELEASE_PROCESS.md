@@ -17,7 +17,7 @@ flowchart TD
     subgraph Pipeline["Unified CI/CD Pipeline (ci-cd.yml)"]
         subgraph Gatekeeper["1. Quality Gate"]
             BuildTest["Matrix Build & Tests<br/>(Node 20.x & 22.x)<br/>• fail-fast: true"]
-            Doctor["Project Doctor (code-health)<br/>• Waits for Build & Tests<br/>• Evaluates health grade (A–F)<br/>• Comments report to PR<br/>• Blocks grades below MIN_PASSING_GRADE"]
+            HealthCheck["Health Check (health-check)<br/>• Waits for Build & Tests<br/>• Evaluates health grade (A–F)<br/>• Comments report to PR<br/>• Blocks grades below MIN_PASSING_GRADE"]
         end
 
         subgraph Versioning["2. Versioning Engine"]
@@ -36,11 +36,11 @@ flowchart TD
     PushDev --> BuildTest
     PushMaster --> BuildTest
 
-    BuildTest -->|Passes| Doctor
+    BuildTest -->|Passes| HealthCheck
     BuildTest -.->|Fails| FailCI[Pipeline Fails & Early Exit]
 
-    Doctor -->|Fails Grade Threshold| FailGate[Release Blocked]
-    Doctor -->|Passed & Branch Push| Semantic
+    HealthCheck -->|Fails Grade Threshold| FailGate[Release Blocked]
+    HealthCheck -->|Passed & Branch Push| Semantic
 
     Semantic -->|Web App Target| DeployWeb
     Semantic -->|Plugin Target| PublishNPM
@@ -52,14 +52,14 @@ flowchart TD
 
 ## How It Works
 
-### 1. The CI Gatekeeper (`build-and-test` & `code-health`)
+### 1. The CI Gatekeeper (`build-and-test` & `health-check`)
 
 Every push and pull request executes through continuous integration with strict **early-exit fail-fast** mechanisms:
 
 1. **Matrix Build & Tests (`build-and-test`):**
    - Compiles all workspaces and the root app across supported Node.js versions (20.x, 22.x) and runs unit test suites.
    - **`fail-fast: true`:** If either Node runner fails, the entire matrix cancels immediately.
-2. **Project Doctor (`code-health`):**
+2. **Health Check (`health-check`):**
    - **`needs: build-and-test`:** Only starts **after** matrix builds and tests pass completely.
    - Runs linters (ESLint, Stylelint), TypeScript type-checking, code formatting (Prettier), and dependency audits.
    - Formats a complete markdown health report and calculates an overall grade (A–F).
@@ -71,9 +71,9 @@ Every push and pull request executes through continuous integration with strict 
 
 ### 2. The Versioning Engine (`release`)
 
-The versioning job runs sequentially in the same workflow after `code-health`:
+The versioning job runs sequentially in the same workflow after `health-check`:
 
-- **Dependency:** `needs: code-health` — only triggers when quality checks satisfy minimum passing requirements on `master`, `main`, `dev`, or `development`.
+- **Dependency:** `needs: health-check` — only triggers when quality checks satisfy minimum passing requirements on `master`, `main`, `dev`, or `development`.
 - **Execution:**
   1. `semantic-release` analyzes commit messages since the last release according to [Conventional Commits](https://www.conventionalcommits.org/).
   2. It computes the appropriate version bump (`feat:` $\rightarrow$ minor, `fix:` $\rightarrow$ patch, `BREAKING CHANGE:` $\rightarrow$ major).
@@ -100,14 +100,14 @@ Deployment logic is modularized into reusable **composite actions**, keeping tar
 
 ### 4. Environment & Deployment Behaviors
 
-| Stage                                      | Pull Request (PR)            | `dev` / Staging                    | `master` / Production                   |
-| :----------------------------------------- | :--------------------------- | :--------------------------------- | :-------------------------------------- |
-| **Project Doctor (`npm run lint:doctor`)** | 🩺 **Runs & comments on PR** | 🩺 **Runs & gates release**        | 🩺 **Runs & gates release**             |
-| **NPM Package Publishing**                 | 🧪 **Dry Run** (`--dry-run`) | 🧪 **Dry Run** (`--dry-run`)       | 🚀 **Live Publish** (`--access public`) |
-| **VitePress Docs Deployment**              | ⏭️ Skipped                   | ⏭️ Skipped                         | 🚀 **Deployed to GitHub Pages**         |
-| **Semantic Release Tag**                   | ⏭️ Skipped                   | 🏷️ Prerelease tag (`v1.0.0-dev.1`) | 🏷️ Official release tag (`v1.0.0`)      |
-| **Web Hosting (Firebase/Azure)**           | 🌐 Ephemeral preview URL     | 🌐 Deploys to Staging channel      | 🌐 Deploys to Live / Production         |
-| **Electron & Extensions**                  | 📦 Local build check         | 📦 Pre-release GitHub Release      | 📦 Official Latest GitHub Release       |
+| Stage                                     | Pull Request (PR)            | `dev` / Staging                    | `master` / Production                   |
+| :---------------------------------------- | :--------------------------- | :--------------------------------- | :-------------------------------------- |
+| **Health Check (`npm run health-check`)** | 🩺 **Runs & comments on PR** | 🩺 **Runs & gates release**        | 🩺 **Runs & gates release**             |
+| **NPM Package Publishing**                | 🧪 **Dry Run** (`--dry-run`) | 🧪 **Dry Run** (`--dry-run`)       | 🚀 **Live Publish** (`--access public`) |
+| **VitePress Docs Deployment**             | ⏭️ Skipped                   | ⏭️ Skipped                         | 🚀 **Deployed to GitHub Pages**         |
+| **Semantic Release Tag**                  | ⏭️ Skipped                   | 🏷️ Prerelease tag (`v1.0.0-dev.1`) | 🏷️ Official release tag (`v1.0.0`)      |
+| **Web Hosting (Firebase/Azure)**          | 🌐 Ephemeral preview URL     | 🌐 Deploys to Staging channel      | 🌐 Deploys to Live / Production         |
+| **Electron & Extensions**                 | 📦 Local build check         | 📦 Pre-release GitHub Release      | 📦 Official Latest GitHub Release       |
 
 ---
 

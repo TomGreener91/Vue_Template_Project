@@ -44,8 +44,8 @@ jobs:
       - name: Build Root App
         run: npm run build
 
-  code-health:
-    name: Project Doctor & Code Health
+  health-check:
+    name: Health Check
     runs-on: ubuntu-latest
     needs: build-and-test
     permissions:
@@ -65,10 +65,10 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run Project Doctor
-        id: doctor
+      - name: Run Health Check
+        id: health-check
         continue-on-error: true
-        run: npm run lint:doctor
+        run: npm run health-check
 
       - name: Publish Job Summary
         if: always()
@@ -83,12 +83,12 @@ jobs:
             const fs = require('fs');
             const report = fs.existsSync('health-report.md')
               ? fs.readFileSync('health-report.md', 'utf8')
-              : 'Health report was not generated — see the "Run Project Doctor" step logs.';
+              : 'Health report was not generated — see the "Run Health Check" step logs.';
 
-            const marker = '<!-- project-doctor-report -->';
+            const marker = '<!-- health-report -->';
             const truncate = (str, max) =>
               str.length > max
-                ? `${str.substring(0, max)}\n\n... (truncated — run \`npm run lint:doctor\` locally for the full report)`
+                ? `${str.substring(0, max)}\n\n... (truncated — run \`npm run health-check\` locally for the full report)`
                 : str;
             const commentBody = `${marker}\n${truncate(report, 60000)}`;
 
@@ -116,12 +116,12 @@ jobs:
             }
 
       - name: Enforce Minimum Passing Grade
-        if: steps.doctor.outcome == 'failure'
+        if: steps.health-check.outcome == 'failure'
         run: exit 1
 
   release:
     name: Semantic Release
-    needs: code-health
+    needs: health-check
     runs-on: ubuntu-latest
     if: >-
       github.event.repository.fork == false &&

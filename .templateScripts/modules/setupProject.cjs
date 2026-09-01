@@ -60,7 +60,7 @@ async function setupProject() {
     copyCompositeAction('deploy-firebase');
     deployJobYaml = `  deploy-firebase-preview:
     name: Firebase PR Preview Deploy
-    needs: code-health
+    needs: health-check
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -103,7 +103,7 @@ async function setupProject() {
     copyCompositeAction('deploy-azure');
     deployJobYaml = `  deploy-azure-preview:
     name: Azure PR Preview Deploy
-    needs: code-health
+    needs: health-check
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
