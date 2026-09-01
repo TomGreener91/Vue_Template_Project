@@ -130,7 +130,7 @@
 
 - Development: `npm run dev`
 - Build: `npm run build`
-- Type Check: `npm run type-check`
+- Type Check: `npm run lint:types`
 - Linting: `npm run lint`
 
 ## Specific Instructions for Gemini

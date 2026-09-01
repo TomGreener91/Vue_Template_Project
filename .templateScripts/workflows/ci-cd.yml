@@ -68,7 +68,7 @@ jobs:
       - name: Run Project Doctor
         id: doctor
         continue-on-error: true
-        run: npm run doctor
+        run: npm run lint:doctor
 
       - name: Publish Job Summary
         if: always()
@@ -88,7 +88,7 @@ jobs:
             const marker = '<!-- project-doctor-report -->';
             const truncate = (str, max) =>
               str.length > max
-                ? `${str.substring(0, max)}\n\n... (truncated — run \`npm run doctor\` locally for the full report)`
+                ? `${str.substring(0, max)}\n\n... (truncated — run \`npm run lint:doctor\` locally for the full report)`
                 : str;
             const commentBody = `${marker}\n${truncate(report, 60000)}`;
 

@@ -100,14 +100,14 @@ Deployment logic is modularized into reusable **composite actions**, keeping tar
 
 ### 4. Environment & Deployment Behaviors
 
-| Stage                                 | Pull Request (PR)            | `dev` / Staging                    | `master` / Production                   |
-| :------------------------------------ | :--------------------------- | :--------------------------------- | :-------------------------------------- |
-| **Project Doctor (`npm run doctor`)** | 🩺 **Runs & comments on PR** | 🩺 **Runs & gates release**        | 🩺 **Runs & gates release**             |
-| **NPM Package Publishing**            | 🧪 **Dry Run** (`--dry-run`) | 🧪 **Dry Run** (`--dry-run`)       | 🚀 **Live Publish** (`--access public`) |
-| **VitePress Docs Deployment**         | ⏭️ Skipped                   | ⏭️ Skipped                         | 🚀 **Deployed to GitHub Pages**         |
-| **Semantic Release Tag**              | ⏭️ Skipped                   | 🏷️ Prerelease tag (`v1.0.0-dev.1`) | 🏷️ Official release tag (`v1.0.0`)      |
-| **Web Hosting (Firebase/Azure)**      | 🌐 Ephemeral preview URL     | 🌐 Deploys to Staging channel      | 🌐 Deploys to Live / Production         |
-| **Electron & Extensions**             | 📦 Local build check         | 📦 Pre-release GitHub Release      | 📦 Official Latest GitHub Release       |
+| Stage                                      | Pull Request (PR)            | `dev` / Staging                    | `master` / Production                   |
+| :----------------------------------------- | :--------------------------- | :--------------------------------- | :-------------------------------------- |
+| **Project Doctor (`npm run lint:doctor`)** | 🩺 **Runs & comments on PR** | 🩺 **Runs & gates release**        | 🩺 **Runs & gates release**             |
+| **NPM Package Publishing**                 | 🧪 **Dry Run** (`--dry-run`) | 🧪 **Dry Run** (`--dry-run`)       | 🚀 **Live Publish** (`--access public`) |
+| **VitePress Docs Deployment**              | ⏭️ Skipped                   | ⏭️ Skipped                         | 🚀 **Deployed to GitHub Pages**         |
+| **Semantic Release Tag**                   | ⏭️ Skipped                   | 🏷️ Prerelease tag (`v1.0.0-dev.1`) | 🏷️ Official release tag (`v1.0.0`)      |
+| **Web Hosting (Firebase/Azure)**           | 🌐 Ephemeral preview URL     | 🌐 Deploys to Staging channel      | 🌐 Deploys to Live / Production         |
+| **Electron & Extensions**                  | 📦 Local build check         | 📦 Pre-release GitHub Release      | 📦 Official Latest GitHub Release       |
 
 ---
 
