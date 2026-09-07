@@ -73,12 +73,14 @@ async function setupElectron() {
       packageJson.main = 'electron/main.cjs';
       
       packageJson.devDependencies = packageJson.devDependencies || {};
-      packageJson.devDependencies['electron'] = '^34.0.0';
-      packageJson.devDependencies['@electron-forge/cli'] = '^7.4.0';
-      packageJson.devDependencies['@electron-forge/maker-deb'] = '^7.4.0';
-      packageJson.devDependencies['@electron-forge/maker-rpm'] = '^7.4.0';
-      packageJson.devDependencies['@electron-forge/maker-squirrel'] = '^7.4.0';
-      packageJson.devDependencies['@electron-forge/maker-zip'] = '^7.4.0';
+      packageJson.devDependencies['electron'] = '^44.0.0';
+      packageJson.devDependencies['@electron-forge/cli'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/maker-deb'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/maker-rpm'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/maker-squirrel'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/maker-zip'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/plugin-fuses'] = '^7.11.2';
+      packageJson.devDependencies['@electron/fuses'] = '^2.1.3';
       packageJson.devDependencies['electron-squirrel-startup'] = '^1.0.0';
 
       if (IS_DEBUG) {
