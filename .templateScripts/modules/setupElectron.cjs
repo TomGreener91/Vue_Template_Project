@@ -23,13 +23,21 @@ async function setupElectron() {
     {},
   );
 
-  const forgeConfigSrc = path.join(electronTemplateDir, 'forge.config.cjs');
-  const forgeConfigDest = path.join(projectRoot, 'forge.config.cjs');
+  const configFiles = [
+    'forge.config.cjs',
+    'vite.main.config.mjs',
+    'vite.preload.config.mjs',
+    'vite.renderer.config.mjs',
+  ];
 
-  if (IS_DEBUG) {
-    console.log(`[DEBUG] Would copy forge.config.cjs to ${forgeConfigDest}`);
-  } else {
-    fs.copyFileSync(forgeConfigSrc, forgeConfigDest);
+  for (const fileName of configFiles) {
+    const src = path.join(electronTemplateDir, fileName);
+    const dest = path.join(projectRoot, fileName);
+    if (IS_DEBUG) {
+      console.log(`[DEBUG] Would copy ${fileName} to ${dest}`);
+    } else {
+      fs.copyFileSync(src, dest);
+    }
   }
 
   // Copy composite actions needed for Electron
@@ -70,7 +78,7 @@ async function setupElectron() {
   if (fs.existsSync(packageJsonPath)) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      packageJson.main = 'electron/main.cjs';
+      packageJson.main = '.vite/build/main.js';
       
       packageJson.devDependencies = packageJson.devDependencies || {};
       packageJson.devDependencies['electron'] = '^44.0.0';
@@ -80,6 +88,7 @@ async function setupElectron() {
       packageJson.devDependencies['@electron-forge/maker-squirrel'] = '^7.11.2';
       packageJson.devDependencies['@electron-forge/maker-zip'] = '^7.11.2';
       packageJson.devDependencies['@electron-forge/plugin-fuses'] = '^7.11.2';
+      packageJson.devDependencies['@electron-forge/plugin-vite'] = '^7.11.2';
       packageJson.devDependencies['@electron/fuses'] = '^2.1.3';
       packageJson.devDependencies['electron-squirrel-startup'] = '^1.0.0';
 

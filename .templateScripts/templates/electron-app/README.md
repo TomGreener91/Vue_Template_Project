@@ -2,11 +2,23 @@
 
 This template sets up the project to be a hardened Electron desktop application configured according to the [official Electron Security Recommendations](https://www.electronjs.org/docs/latest/tutorial/security).
 
+## Architecture & Development (Vite Plugin)
+
+The Electron application uses `@electron-forge/plugin-vite` to orchestrate builds, development servers, and production packaging:
+
+- **Hot Reloading & Process Restart**: `npm run electron:start` boots the Vite dev server with Vue HMR, automatically watches and recompiles `electron/main.ts` and `electron/preload.ts`, and restarts the Electron process or reloads the renderer on changes.
+- **Strict TypeScript**: Both `electron/main.ts` and `electron/preload.ts` are written in TypeScript and bundled to `.vite/build/`.
+- **Targeted Configurations**:
+  - `vite.main.config.mjs`: Bundles the main process and externalizes runtime dependencies (`electron`, `electron-squirrel-startup`).
+  - `vite.preload.config.mjs`: Bundles the preload script and externalizes `electron`.
+  - `vite.renderer.config.mjs`: Configures the Vue 3 + Tailwind CSS 4 frontend for the Electron renderer window.
+- **Automated Packaging Exclusions**: `@electron-forge/plugin-vite` automatically enforces strict packaging ignore rules (`!file.startsWith('/.vite')`), ensuring that source files (`src/`, `public/`), TypeScript configs, documentation, and raw build assets are never leaked into the production `app.asar`.
+
 ## Development
 
-- `npm run electron:start`: Start the Electron application in development mode.
-- `npm run electron:package`: Package the application for the current platform.
-- `npm run electron:make`: Create distributable installers for the application.
+- `npm run electron:start`: Start the Electron application with Vite dev server and HMR.
+- `npm run electron:package`: Bundle all targets via Vite and package the application.
+- `npm run electron:make`: Compile all targets and generate distributable platform installers.
 
 ## Security Architecture & Defaults
 
@@ -20,4 +32,4 @@ This template is configured with defense-in-depth defaults aligning with Electro
 
 ## Build and Release
 
-The `.github/workflows/release-electron.yml` workflow (if present) handles building and releasing the Electron application.
+The GitHub Actions release workflow handles building and releasing the Electron application installers across Linux, macOS, and Windows.

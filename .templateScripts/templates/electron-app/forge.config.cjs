@@ -1,3 +1,4 @@
+const { VitePlugin } = require('@electron-forge/plugin-vite');
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
@@ -25,6 +26,26 @@ module.exports = {
     },
   ],
   plugins: [
+    new VitePlugin({
+      build: [
+        {
+          entry: 'electron/main.ts',
+          config: 'vite.main.config.mjs',
+          target: 'main',
+        },
+        {
+          entry: 'electron/preload.ts',
+          config: 'vite.preload.config.mjs',
+          target: 'preload',
+        },
+      ],
+      renderer: [
+        {
+          name: 'main_window',
+          config: 'vite.renderer.config.mjs',
+        },
+      ],
+    }),
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
