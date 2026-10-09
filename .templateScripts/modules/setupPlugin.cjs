@@ -86,7 +86,7 @@ function addPluginToMainTs(pluginName, importName, defaultExport = true) {
 async function setupPlugin() {
   console.log('\nSetting up for Plugin Development...');
 
-  const pluginName = await askQuestion('Enter the name of your new plugin (kebab-case): ');
+  const pluginName = await askQuestion('Enter the name of your new plugin (kebab-case): ', 'name');
 
   if (!pluginName) {
     console.log('Plugin name is required.');
@@ -100,7 +100,7 @@ async function setupPlugin() {
     { label: 'Vue App Plugin (Provides app.use() install hook)', value: 'vue-plugin' },
     { label: 'Standard Code/Utils Library (No Vue dependency)', value: 'utils-library' },
     { label: 'Vite Plugin (Build tool extension)', value: 'vite-plugin' },
-  ]);
+  ], 'plugin-type');
 
   const templateName = pluginType;
 
@@ -111,6 +111,7 @@ async function setupPlugin() {
       { label: 'Yes', value: 'y' },
       { label: 'No', value: 'n' },
     ],
+    'docs',
   );
 
   const newPluginDir = path.join(pluginsDir, pluginName);
@@ -246,6 +247,7 @@ async function setupPlugin() {
         { label: 'Yes', value: 'y' },
         { label: 'No', value: 'n' },
       ],
+      'add-to-main',
     );
     if (addToMain === 'y') {
       const pascalName = toPascalCase(pluginName);

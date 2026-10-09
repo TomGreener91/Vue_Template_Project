@@ -27,7 +27,7 @@ async function setupProject() {
     { label: 'Firebase Hosting', value: 'firebase' },
     { label: 'Azure Static Web Apps', value: 'azure' },
     { label: 'None / Skip', value: 'none' },
-  ]);
+  ], 'hosting');
 
   let deployJobYaml = '';
 

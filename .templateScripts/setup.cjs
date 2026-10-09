@@ -11,23 +11,42 @@ const setupPlugin = require('./modules/setupPlugin.cjs');
 const setupElectron = require('./modules/setupElectron.cjs');
 const setupBrowserExtension = require('./modules/setupBrowserExtension.cjs');
 
+/*
+ * Non-interactive usage (CI / AI agents) — every prompt can be answered by a flag:
+ *   --type=project|plugin|electron|extension
+ *   --hosting=github-pages|firebase|azure|none           (project)
+ *   --name=<kebab-case>                                  (plugin)
+ *   --plugin-type=component-library|vue-plugin|utils-library|vite-plugin  (plugin)
+ *   --docs=y|n                                           (plugin)
+ *   --add-to-main=y|n                     (plugin: component-library / vue-plugin)
+ *   --cleanup=y|n
+ *   --debug                                              (dry run, no files written)
+ *
+ * Example:
+ *   node .templateScripts/setup.cjs --type=project --hosting=none --cleanup=y
+ */
+
 async function main() {
   console.log('Welcome to the Template Setup Script!\n');
 
-  const answer = await selectOption('Select an option:', [
-    { label: 'Setup for Project Development (Main App)', value: '1' },
-    { label: 'Setup for Plugin Development', value: '2' },
-    { label: 'Setup for Electron App', value: '3' },
-    { label: 'Setup for Browser Extension', value: '4' },
-  ]);
+  const answer = await selectOption(
+    'Select an option:',
+    [
+      { label: 'Setup for Project Development (Main App)', value: 'project' },
+      { label: 'Setup for Plugin Development', value: 'plugin' },
+      { label: 'Setup for Electron App', value: 'electron' },
+      { label: 'Setup for Browser Extension', value: 'extension' },
+    ],
+    'type',
+  );
 
-  if (answer === '1') {
+  if (answer === 'project') {
     await setupProject();
-  } else if (answer === '2') {
+  } else if (answer === 'plugin') {
     await setupPlugin();
-  } else if (answer === '3') {
+  } else if (answer === 'electron') {
     await setupElectron();
-  } else if (answer === '4') {
+  } else if (answer === 'extension') {
     await setupBrowserExtension();
   }
 
@@ -39,6 +58,7 @@ async function main() {
       { label: 'Yes', value: 'y' },
       { label: 'No', value: 'n' },
     ],
+    'cleanup',
   );
 
   if (removeScripts === 'y') {

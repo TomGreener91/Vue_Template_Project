@@ -16,21 +16,75 @@ const projectRoot = path.join(__dirname, '..');
 const IS_DEBUG = process.argv.includes('--debug');
 
 /**
+ * Pre-supplied answers from the command line, e.g. --type=project --cleanup=y.
+ * Any prompt with a matching flag is answered automatically, so the script can run
+ * non-interactively (CI, AI agents). Prompts without a flag fall back to interactive input.
+ * @type {Record<string, string>}
+ */
+const ARGS = {};
+for (const arg of process.argv.slice(2)) {
+  const match = arg.match(/^--([^=]+)=(.*)$/);
+  if (match) {
+    ARGS[match[1]] = match[2];
+  }
+}
+
+/**
+ * Exits with a clear error when a prompt needs input but no terminal is attached.
+ * Prevents agents/CI from hanging on a prompt they cannot answer.
+ * @param {string} flag The flag that would answer this prompt
+ * @param {string} hint Description of accepted values
+ */
+function exitMissingFlag(flag, hint) {
+  console.error(`\nNon-interactive shell detected. Pass --${flag}=${hint} to answer this prompt.`);
+  process.exit(1);
+}
+
+/**
  * Prompts the user with a question and waits for input.
+ * If `flag` is given and supplied on the command line, its value is used instead.
  * @param {string} query The question to display
+ * @param {string} [flag] Command-line flag name that can answer this prompt
  * @returns {Promise<string>} User's response
  */
-function askQuestion(query) {
+function askQuestion(query, flag) {
+  if (flag && ARGS[flag] !== undefined) {
+    console.log(`${query}${ARGS[flag]} (from --${flag})`);
+    return Promise.resolve(ARGS[flag]);
+  }
+
+  if (flag && !process.stdin.isTTY) {
+    exitMissingFlag(flag, '<value>');
+  }
+
   return new Promise((resolve) => rl.question(query, resolve));
 }
 
 /**
  * Prompts the user with a list of options using an interactive selector.
+ * If `flag` is given and supplied on the command line, the matching option is used instead.
  * @param {string} message The prompt message
  * @param {Array<{label: string, value: string}>} options Array of options to select
+ * @param {string} [flag] Command-line flag name that can answer this prompt
  * @returns {Promise<string>} The value of the selected option
  */
-async function selectOption(message, options) {
+async function selectOption(message, options, flag) {
+  const validValues = options.map((opt) => opt.value);
+
+  if (flag && ARGS[flag] !== undefined) {
+    const chosen = options.find((opt) => opt.value === ARGS[flag]);
+    if (!chosen) {
+      console.error(`Invalid --${flag}=${ARGS[flag]}. Valid values: ${validValues.join(', ')}`);
+      process.exit(1);
+    }
+    console.log(`\x1b[1m? ${message}\x1b[0m ${chosen.label} (from --${flag})`);
+    return chosen.value;
+  }
+
+  if (flag && !process.stdin.isTTY) {
+    exitMissingFlag(flag, `<${validValues.join('|')}>`);
+  }
+
   return new Promise((resolve) => {
     let selectedIndex = 0;
 
@@ -183,7 +237,7 @@ function updateRootPackageScripts(newScripts) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       packageJson.scripts = packageJson.scripts || {};
-      
+
       let changed = false;
       for (const [key, value] of Object.entries(newScripts)) {
         if (packageJson.scripts[key] !== value) {
@@ -263,6 +317,7 @@ module.exports = {
   templateScriptsDir,
   projectRoot,
   IS_DEBUG,
+  ARGS,
   askQuestion,
   selectOption,
   closeReadline,
