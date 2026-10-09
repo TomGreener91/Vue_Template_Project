@@ -7,8 +7,29 @@ if (started) {
   app.quit();
 }
 
+// Suppress background networking, component updates, and telemetry probes
+app.commandLine.appendSwitch('disable-background-networking');
+app.commandLine.appendSwitch('disable-component-update');
+app.commandLine.appendSwitch('disable-domain-reliability');
+app.commandLine.appendSwitch('disable-sync');
+app.commandLine.appendSwitch('no-default-browser-check');
+
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+
+/**
+ * Safely parses and opens an external URL in the OS default browser if protocol is https.
+ */
+function openSafeExternal(targetUrl: string): void {
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol === 'https:') {
+      shell.openExternal(targetUrl);
+    }
+  } catch {
+    // Ignore malformed URLs
+  }
+}
 
 /**
  * Initializes and displays the main application browser window with security hardening.
@@ -17,6 +38,7 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1024,
     height: 768,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -25,6 +47,20 @@ function createWindow(): void {
       webSecurity: true,
     },
   });
+
+  win.once('ready-to-show', () => {
+    win.show();
+  });
+
+  // Enable DevTools shortcut only in development
+  if (!app.isPackaged) {
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+        win.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    });
+  }
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -48,9 +84,7 @@ app.whenReady().then(() => {
 
     // Intercept window.open / popups and delegate safe external URLs to system browser
     contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('https://')) {
-        shell.openExternal(url);
-      }
+      openSafeExternal(url);
       return { action: 'deny' };
     });
 
@@ -58,9 +92,7 @@ app.whenReady().then(() => {
     contents.on('will-navigate', (event, url) => {
       if (url !== contents.getURL()) {
         event.preventDefault();
-        if (url.startsWith('https://')) {
-          shell.openExternal(url);
-        }
+        openSafeExternal(url);
       }
     });
   });
