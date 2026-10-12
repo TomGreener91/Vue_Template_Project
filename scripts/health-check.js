@@ -57,9 +57,16 @@ const runCommand = (command) => {
 // parsed as clean JSON instead of scraped from decorated CLI text.
 const execCapture = (command, args) =>
   new Promise((resolve) => {
-    execFile(command, args, { cwd: rootDir, maxBuffer: MAX_BUFFER }, (error, stdout, stderr) => {
-      resolve({ success: !error, stdout: stdout ?? '', stderr: stderr ?? '', error });
-    });
+    // Windows can only run .cmd shims (node_modules/.bin, npm) through a shell.
+    const shell = process.platform === 'win32';
+    execFile(
+      shell ? `"${command}"` : command,
+      args,
+      { cwd: rootDir, maxBuffer: MAX_BUFFER, shell },
+      (error, stdout, stderr) => {
+        resolve({ success: !error, stdout: stdout ?? '', stderr: stderr ?? '', error });
+      },
+    );
   });
 
 const renderBar = (value, max, width = 20) => {
