@@ -16,9 +16,5 @@
       "js": ["src/extension/content-script.js"]
     }
   ],
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
-  ]
+  "permissions": ["storage", "activeTab", "scripting"]
 }

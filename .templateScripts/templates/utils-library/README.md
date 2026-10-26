@@ -7,10 +7,10 @@ A utility library.
 To use this library, import the functions or classes you need:
 
 ```ts
-import { yourExportedFunction } from '{{PLUGIN_NAME}}'
+import { yourExportedFunction } from '{{PLUGIN_NAME}}';
 
 // Use the function
-yourExportedFunction()
+yourExportedFunction();
 ```
 
 ## Development
@@ -25,5 +25,6 @@ This package is part of a workspace. Ensure you run `npm install` from the proje
 ## Documentation
 
 If you elected to deploy documentation to GitHub Pages during setup, your project includes a dynamic VitePress site!
+
 - `npm run docs:dev`: Start the local documentation server.
 - `npm run docs:build`: Build the documentation site for production.

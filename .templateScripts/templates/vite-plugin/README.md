@@ -7,14 +7,12 @@ A Vite plugin package.
 Describe how to use your Vite plugin here.
 
 ```ts
-import { defineConfig } from 'vite'
-import {{CAMEL_PLUGIN_NAME}} from '{{PLUGIN_NAME}}'
+import { defineConfig } from 'vite';
+import {{CAMEL_PLUGIN_NAME}} from '{{PLUGIN_NAME}}';
 
 export default defineConfig({
-  plugins: [
-    {{CAMEL_PLUGIN_NAME}}()
-  ]
-})
+  plugins: [{{CAMEL_PLUGIN_NAME}}()],
+});
 ```
 
 ## Development
@@ -29,5 +27,6 @@ This package is part of a workspace. Ensure you run `npm install` from the proje
 ## Documentation
 
 If you elected to deploy documentation to GitHub Pages during setup, your project includes a dynamic VitePress site!
+
 - `npm run docs:dev`: Start the local documentation server.
 - `npm run docs:build`: Build the documentation site for production.

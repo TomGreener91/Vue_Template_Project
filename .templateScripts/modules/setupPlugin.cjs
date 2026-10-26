@@ -12,7 +12,7 @@ const {
   copyDirectoryRecursive,
   updateRootPackageScripts,
   copyCompositeAction,
-  setupPipelineWorkflow
+  setupPipelineWorkflow,
 } = require('../utils.cjs');
 
 /**
@@ -36,7 +36,7 @@ function updateWorkspaces() {
         if (IS_DEBUG) {
           console.log(`[DEBUG] Would add "${pluginPattern}" to workspaces in package.json`);
         } else {
-          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
           console.log(`Updated package.json workspaces to include plugins.`);
         }
       }
@@ -58,9 +58,9 @@ function addPluginToMainTs(pluginName, importName, defaultExport = true) {
 
   let content = fs.readFileSync(mainTsPath, 'utf-8');
 
-  const importStatement = defaultExport 
-    ? `import ${importName} from '${pluginName}'\n`
-    : `import { ${importName} } from '${pluginName}'\n`;
+  const importStatement = defaultExport
+    ? `import ${importName} from '${pluginName}';\n`
+    : `import { ${importName} } from '${pluginName}';\n`;
 
   const lastImportIndex = content.lastIndexOf('import ');
   const endOfLastImport = content.indexOf('\n', lastImportIndex);
@@ -69,7 +69,7 @@ function addPluginToMainTs(pluginName, importName, defaultExport = true) {
     content.slice(0, endOfLastImport + 1) + importStatement + content.slice(endOfLastImport + 1);
 
   const mountIndex = content.indexOf('app.mount');
-  content = content.slice(0, mountIndex) + `app.use(${importName})\n` + content.slice(mountIndex);
+  content = content.slice(0, mountIndex) + `app.use(${importName});\n` + content.slice(mountIndex);
 
   if (IS_DEBUG) {
     console.log(`[DEBUG] Would update src/main.ts to include plugin: ${pluginName}`);
@@ -95,12 +95,16 @@ async function setupPlugin() {
 
   // Ask for plugin type
   console.log('');
-  const pluginType = await selectOption('What type of package are you creating?', [
-    { label: 'Vue Component Library (UI Components)', value: 'component-library' },
-    { label: 'Vue App Plugin (Provides app.use() install hook)', value: 'vue-plugin' },
-    { label: 'Standard Code/Utils Library (No Vue dependency)', value: 'utils-library' },
-    { label: 'Vite Plugin (Build tool extension)', value: 'vite-plugin' },
-  ], 'plugin-type');
+  const pluginType = await selectOption(
+    'What type of package are you creating?',
+    [
+      { label: 'Vue Component Library (UI Components)', value: 'component-library' },
+      { label: 'Vue App Plugin (Provides app.use() install hook)', value: 'vue-plugin' },
+      { label: 'Standard Code/Utils Library (No Vue dependency)', value: 'utils-library' },
+      { label: 'Vite Plugin (Build tool extension)', value: 'vite-plugin' },
+    ],
+    'plugin-type',
+  );
 
   const templateName = pluginType;
 
@@ -138,28 +142,28 @@ async function setupPlugin() {
   };
 
   copyDirectoryRecursive(selectedTemplateDir, newPluginDir, replacements);
-  
+
   // Inject shared docs if the user wants them
   if (deployDocs === 'y') {
     const sharedDocsSrc = path.join(__dirname, '..', 'shared', 'docs');
     const pluginDocsDest = path.join(newPluginDir, 'docs');
-    
+
     if (fs.existsSync(sharedDocsSrc)) {
       copyDirectoryRecursive(sharedDocsSrc, pluginDocsDest, replacements);
       console.log('Injected shared VitePress documentation setup.');
-      
+
       const pluginPkgPath = path.join(newPluginDir, 'package.json');
       if (fs.existsSync(pluginPkgPath)) {
         try {
           const pkg = JSON.parse(fs.readFileSync(pluginPkgPath, 'utf-8'));
           pkg.devDependencies = pkg.devDependencies || {};
-          pkg.devDependencies['vitepress'] = '^3.5.0';
-          
+          pkg.devDependencies['vitepress'] = '^1.6.4';
+
           pkg.scripts = pkg.scripts || {};
           pkg.scripts['docs:dev'] = 'vitepress dev docs';
           pkg.scripts['docs:build'] = 'vitepress build docs';
-          
-          fs.writeFileSync(pluginPkgPath, JSON.stringify(pkg, null, 2));
+
+          fs.writeFileSync(pluginPkgPath, JSON.stringify(pkg, null, 2) + '\n');
           console.log('Updated plugin package.json with VitePress scripts and dependencies.');
         } catch (e) {
           console.error('Failed to update plugin package.json for docs:', e.message);
@@ -206,7 +210,7 @@ async function setupPlugin() {
   // Set up the unified pipeline workflow
   await setupPipelineWorkflow(deployJobYaml, {
     '{{PLUGIN_NAME}}': pluginName,
-    '{{DEPLOY_DOCS}}': deployDocs === 'y' ? 'true' : 'false'
+    '{{DEPLOY_DOCS}}': deployDocs === 'y' ? 'true' : 'false',
   });
 
   console.log(`Plugin "${pluginName}" created at plugins/${pluginName}`);
@@ -233,10 +237,10 @@ async function setupPlugin() {
 
   // Ensure root build script can handle workspaces, building workspaces FIRST
   updateRootPackageScripts({
-    "build:app": "vue-tsc --noEmit && vite build",
-    "build:workspaces": "npm run build --workspaces --if-present",
-    "build": "npm run build:workspaces && npm run build:app",
-    "publish:test": "npm run publish:test --workspaces --if-present"
+    'build:app': 'vue-tsc --noEmit && vite build',
+    'build:workspaces': 'npm run build --workspaces --if-present',
+    build: 'npm run build:workspaces && npm run build:app',
+    'publish:test': 'npm run publish:test --workspaces --if-present',
   });
 
   if (pluginType === 'component-library' || pluginType === 'vue-plugin') {

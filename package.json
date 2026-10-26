@@ -12,6 +12,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "health-check": "node scripts/health-check.js",
+    "lint": "npm run lint:eslint && npm run lint:styles && npm run lint:prettier && npm run lint:types",
+    "lint:fix": "npm run lint:eslint:fix && npm run lint:styles:fix && npm run lint:prettier:fix",
     "lint:eslint": "eslint .",
     "lint:eslint:fix": "eslint . --fix",
     "lint:styles": "stylelint \"**/*.{css,vue}\"",

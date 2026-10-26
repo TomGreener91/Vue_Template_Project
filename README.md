@@ -6,10 +6,12 @@ This robust, highly-automated boilerplate supports standard application developm
 
 This project strictly relies on a CLI setup script to intelligently scaffold your architecture, build your GitHub Actions, and dynamically wire up your workspace.
 
-Run the setup script to begin:
+Initialise git first (husky needs it), then run the setup script:
 
 ```sh
+git init
 node .templateScripts/setup.cjs
+npm install
 ```
 
 ### Options
@@ -74,8 +76,19 @@ npm run dev
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+### Lint, format and type-check
 
 ```sh
-npm run lint
+npm run lint      # ESLint + Stylelint + Prettier check + vue-tsc
+npm run lint:fix  # auto-fix ESLint, Stylelint and Prettier issues
 ```
+
+### Project health (same gate as CI)
+
+```sh
+npm run health-check  # writes health-report.md; CI blocks grades below C
+```
+
+## AI agents
+
+Coding conventions for AI assistants live in [`AGENTS.md`](AGENTS.md). `CLAUDE.md` and `GEMINI.md` import it, so Claude Code, Gemini CLI and other `AGENTS.md`-aware tools all read the same rules.

@@ -498,7 +498,7 @@ const walkFiles = (dir, exts, results = []) => {
   return results;
 };
 
-/** Checks the project's own conventions from gemini.md: store/service naming and no raw console.*. */
+/** Checks the project's own conventions from AGENTS.md: store/service naming and no raw console.*. */
 const checkProjectConventions = async () => {
   const issues = [];
 

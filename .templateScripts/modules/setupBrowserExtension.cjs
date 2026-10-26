@@ -7,7 +7,7 @@ const {
   copyDirectoryRecursive,
   updateRootPackageScripts,
   copyCompositeAction,
-  setupPipelineWorkflow
+  setupPipelineWorkflow,
 } = require('../utils.cjs');
 
 /**
@@ -23,7 +23,7 @@ async function setupBrowserExtension() {
     {},
   );
   copyDirectoryRecursive(path.join(extensionTemplateDir, 'src'), path.join(projectRoot, 'src'), {});
-  
+
   // Copy composite actions needed for browser extension
   copyCompositeAction('setup-node-build');
   copyCompositeAction('release-extension');
@@ -50,7 +50,7 @@ async function setupBrowserExtension() {
 
   // Ensure root build script handles standard builds
   updateRootPackageScripts({
-    "build": "vue-tsc --noEmit && vite build"
+    build: 'vue-tsc --noEmit && vite build',
   });
 
   const readmeSrc = path.join(extensionTemplateDir, 'README.md');

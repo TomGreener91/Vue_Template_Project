@@ -1,14 +1,23 @@
 // eslint.config.js (ESM)
-import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
-import pluginVue from 'eslint-plugin-vue'
-import vueParser from 'vue-eslint-parser'         //explicit Vue SFC parser
-import globals from 'globals'
-import prettier from 'eslint-config-prettier'
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import pluginVue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser'; //explicit Vue SFC parser
+import globals from 'globals';
+import prettier from 'eslint-config-prettier';
 
 export default [
   // Ignore build outputs and config file
-  { ignores: ['**/dist/**', 'node_modules/**', '.vite/**', 'coverage/**', 'eslint.config.js', '.templateScripts/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      'node_modules/**',
+      '.vite/**',
+      'coverage/**',
+      'eslint.config.js',
+      '.templateScripts/**',
+    ],
+  },
 
   // Base JS rules
   js.configs.recommended,
@@ -23,23 +32,33 @@ export default [
   {
     rules: {
       'vue/no-v-html': 'off',
-      'vue/block-order': ['error', {
-        'order': ['template', 'script', 'style']
-      }],
+      'vue/block-order': [
+        'error',
+        {
+          order: ['template', 'script', 'style'],
+        },
+      ],
       'vue/component-api-style': ['error', ['script-setup', 'composition']],
-      'vue/define-macros-order': ['error', {
-        'order': ['defineProps', 'defineEmits']
-      }],
-      'vue/component-name-in-template-casing': ['error', 'PascalCase', {
-        'registeredComponentsOnly': false,
-        'ignores': []
-      }],
+      'vue/define-macros-order': [
+        'error',
+        {
+          order: ['defineProps', 'defineEmits'],
+        },
+      ],
+      'vue/component-name-in-template-casing': [
+        'error',
+        'PascalCase',
+        {
+          registeredComponentsOnly: false,
+          ignores: [],
+        },
+      ],
       'vue/no-restricted-class': [
         'warn',
         '/^(m|p)[lr](-[a-z0-9]+)?$/',
         '/^text-(left|right)$/',
         '/^(border|rounded)-[lr](-[a-z0-9]+)?$/',
-        '/^(left|right)-/'
+        '/^(left|right)-/',
       ],
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -91,6 +110,19 @@ export default [
     languageOptions: {
       ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: { ...globals.node },
+    },
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      // CommonJS config files (e.g. forge.config.cjs) legitimately use require()
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
+  // --- Browser extension scripts: expose the chrome.* / browser.* globals ---
+  {
+    files: ['src/extension/**/*.{js,ts}'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.webextensions },
     },
   },
 

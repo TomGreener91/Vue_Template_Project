@@ -1,10 +1,5 @@
 const fs = require('fs');
-const {
-  templateScriptsDir,
-  IS_DEBUG,
-  selectOption,
-  closeReadline
-} = require('./utils.cjs');
+const { templateScriptsDir, IS_DEBUG, selectOption, closeReadline } = require('./utils.cjs');
 
 const setupProject = require('./modules/setupProject.cjs');
 const setupPlugin = require('./modules/setupPlugin.cjs');

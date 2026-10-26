@@ -7,7 +7,7 @@ const {
   updateRootPackageScripts,
   copyCompositeAction,
   setupPipelineWorkflow,
-  selectOption
+  selectOption,
 } = require('../utils.cjs');
 
 /**
@@ -22,12 +22,16 @@ async function setupProject() {
 
   // Ask for Hosting Platform
   console.log('');
-  const hostingPlatform = await selectOption('Which hosting platform would you like to use for deployment?', [
-    { label: 'GitHub Pages', value: 'github-pages' },
-    { label: 'Firebase Hosting', value: 'firebase' },
-    { label: 'Azure Static Web Apps', value: 'azure' },
-    { label: 'None / Skip', value: 'none' },
-  ], 'hosting');
+  const hostingPlatform = await selectOption(
+    'Which hosting platform would you like to use for deployment?',
+    [
+      { label: 'GitHub Pages', value: 'github-pages' },
+      { label: 'Firebase Hosting', value: 'firebase' },
+      { label: 'Azure Static Web Apps', value: 'azure' },
+      { label: 'None / Skip', value: 'none' },
+    ],
+    'hosting',
+  );
 
   let deployJobYaml = '';
 
@@ -150,7 +154,7 @@ async function setupProject() {
 
   // Ensure root build script can handle workspaces, building workspaces FIRST
   updateRootPackageScripts({
-    "build": "vue-tsc --noEmit && vite build"
+    build: 'vue-tsc --noEmit && vite build',
   });
 
   // Clean up unused plugin pkgRoot entry from .releaserc.json if present
@@ -160,9 +164,16 @@ async function setupProject() {
       const releaserc = JSON.parse(fs.readFileSync(releasercPath, 'utf-8'));
       if (releaserc.plugins) {
         releaserc.plugins = releaserc.plugins.filter(
-          (p) => !(Array.isArray(p) && p[0] === '@semantic-release/npm' && p[1] && p[1].pkgRoot && p[1].pkgRoot.includes('{{PLUGIN_NAME}}'))
+          (p) =>
+            !(
+              Array.isArray(p) &&
+              p[0] === '@semantic-release/npm' &&
+              p[1] &&
+              p[1].pkgRoot &&
+              p[1].pkgRoot.includes('{{PLUGIN_NAME}}')
+            ),
         );
-        fs.writeFileSync(releasercPath, JSON.stringify(releaserc, null, 2));
+        fs.writeFileSync(releasercPath, JSON.stringify(releaserc, null, 2) + '\n');
       }
     } catch (e) {
       // ignore

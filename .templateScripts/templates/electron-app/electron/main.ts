@@ -24,7 +24,7 @@ function openSafeExternal(targetUrl: string): void {
   try {
     const parsed = new URL(targetUrl);
     if (parsed.protocol === 'https:') {
-      shell.openExternal(targetUrl);
+      void shell.openExternal(targetUrl);
     }
   } catch {
     // Ignore malformed URLs
@@ -55,7 +55,10 @@ function createWindow(): void {
   // Enable DevTools shortcut only in development
   if (!app.isPackaged) {
     win.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      if (
+        input.key === 'F12' ||
+        (input.control && input.shift && input.key.toLowerCase() === 'i')
+      ) {
         win.webContents.toggleDevTools();
         event.preventDefault();
       }
@@ -63,14 +66,14 @@ function createWindow(): void {
   }
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    void win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 }
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   // Disallow all permission requests by default
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);

@@ -7,7 +7,7 @@ const {
   copyDirectoryRecursive,
   updateRootPackageScripts,
   copyCompositeAction,
-  setupPipelineWorkflow
+  setupPipelineWorkflow,
 } = require('../utils.cjs');
 
 /**
@@ -69,9 +69,9 @@ async function setupElectron() {
 
   // Update package.json scripts
   updateRootPackageScripts({
-    "electron:start": "electron-forge start",
-    "electron:package": "electron-forge package",
-    "electron:make": "electron-forge make"
+    'electron:start': 'electron-forge start',
+    'electron:package': 'electron-forge package',
+    'electron:make': 'electron-forge make',
   });
 
   const packageJsonPath = path.join(projectRoot, 'package.json');
@@ -79,7 +79,7 @@ async function setupElectron() {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       packageJson.main = '.vite/build/main.js';
-      
+
       packageJson.devDependencies = packageJson.devDependencies || {};
       packageJson.devDependencies['electron'] = '^44.0.0';
       packageJson.devDependencies['@electron-forge/cli'] = '^7.11.2';
@@ -89,13 +89,14 @@ async function setupElectron() {
       packageJson.devDependencies['@electron-forge/maker-zip'] = '^7.11.2';
       packageJson.devDependencies['@electron-forge/plugin-fuses'] = '^7.11.2';
       packageJson.devDependencies['@electron-forge/plugin-vite'] = '^7.11.2';
-      packageJson.devDependencies['@electron/fuses'] = '^2.1.3';
+      packageJson.devDependencies['@electron/fuses'] = '^1.8.0';
       packageJson.devDependencies['electron-squirrel-startup'] = '^1.0.0';
+      packageJson.devDependencies['@types/electron-squirrel-startup'] = '^1.0.2';
 
       if (IS_DEBUG) {
         console.log(`[DEBUG] Would update package.json with Electron main entry and dependencies`);
       } else {
-        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
         console.log('Updated package.json for Electron.');
       }
     } catch (e) {

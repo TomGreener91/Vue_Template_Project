@@ -7,15 +7,15 @@ A Vue plugin package.
 To use this plugin in your Vue application, import it and install it with `app.use()`:
 
 ```ts
-import { createApp } from 'vue'
-import App from './App.vue'
-import {{PASCAL_PLUGIN_NAME}} from '{{PLUGIN_NAME}}'
+import { createApp } from 'vue';
+import App from './App.vue';
+import {{PASCAL_PLUGIN_NAME}} from '{{PLUGIN_NAME}}';
 
-const app = createApp(App)
+const app = createApp(App);
 
-app.use({{PASCAL_PLUGIN_NAME}})
+app.use({{PASCAL_PLUGIN_NAME}});
 
-app.mount('#app')
+app.mount('#app');
 ```
 
 ## Development
@@ -30,5 +30,6 @@ This package is part of a workspace. Ensure you run `npm install` from the proje
 ## Documentation
 
 If you elected to deploy documentation to GitHub Pages during setup, your project includes a dynamic VitePress site!
+
 - `npm run docs:dev`: Start the local documentation server.
 - `npm run docs:build`: Build the documentation site for production.

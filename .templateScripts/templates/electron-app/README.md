@@ -28,13 +28,13 @@ This template is configured with defense-in-depth defaults aligning with the [of
 
 Applied before application readiness to restrict Chromium background network chatter and telemetry:
 
-| Switch | Purpose | When to Modify / Remove |
-| :--- | :--- | :--- |
-| `disable-background-networking` | Disables Chromium background networking activities (e.g., extension updates, policy queries). | Keep enabled unless the app explicitly relies on built-in Chromium extension/network services. |
-| `disable-component-update` | Prevents Chromium from fetching dynamic component updates (such as CRLSets or plugin binaries). | Remove if the app requires dynamic runtime modules such as Widevine DRM. |
-| `disable-domain-reliability` | Suppresses Google domain reliability monitoring and error reporting probes. | Keep enabled in enterprise and private deployments to stop outbound telemetry. |
-| `disable-sync` | Disables Google account data synchronization features built into Chromium. | Keep enabled; desktop applications manage authentication and synchronization independently. |
-| `no-default-browser-check` | Suppresses background system checks verifying if Chromium is set as the default web browser. | Always keep enabled for desktop applications. |
+| Switch                          | Purpose                                                                                         | When to Modify / Remove                                                                        |
+| :------------------------------ | :---------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| `disable-background-networking` | Disables Chromium background networking activities (e.g., extension updates, policy queries).   | Keep enabled unless the app explicitly relies on built-in Chromium extension/network services. |
+| `disable-component-update`      | Prevents Chromium from fetching dynamic component updates (such as CRLSets or plugin binaries). | Remove if the app requires dynamic runtime modules such as Widevine DRM.                       |
+| `disable-domain-reliability`    | Suppresses Google domain reliability monitoring and error reporting probes.                     | Keep enabled in enterprise and private deployments to stop outbound telemetry.                 |
+| `disable-sync`                  | Disables Google account data synchronization features built into Chromium.                      | Keep enabled; desktop applications manage authentication and synchronization independently.    |
+| `no-default-browser-check`      | Suppresses background system checks verifying if Chromium is set as the default web browser.    | Always keep enabled for desktop applications.                                                  |
 
 ### 2. Window Lifecycle & DevTools Gating (`electron/main.ts`)
 

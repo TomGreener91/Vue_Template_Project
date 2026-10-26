@@ -18,8 +18,8 @@ export default defineConfig({
           'default-src': ["'self'"],
           'script-src': ["'self'"],
           'style-src': ["'self'", "'unsafe-inline'"],
-          'img-src': ["'self'", "data:", "blob:"],
-          'font-src': ["'self'", "data:"],
+          'img-src': ["'self'", 'data:', 'blob:'],
+          'font-src': ["'self'", 'data:'],
           'connect-src': ["'self'"],
         },
       }),
@@ -41,8 +41,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
-    extensions: [".mjs", ".js", ".ts", ".jsx", ".tsx", ".json"],
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
   },
 });

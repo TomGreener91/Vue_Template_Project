@@ -164,7 +164,7 @@ function toPascalCase(str) {
   return base
     .split(/[-_]/)
     .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join('');
 }
 
@@ -250,7 +250,7 @@ function updateRootPackageScripts(newScripts) {
         if (IS_DEBUG) {
           console.log(`[DEBUG] Would update root package.json scripts with:`, newScripts);
         } else {
-          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
           console.log('Updated root package.json scripts.');
         }
       }
@@ -302,6 +302,9 @@ async function setupPipelineWorkflow(deployJobYaml = '', replacements = {}) {
       content = content.split(key).join(value);
     }
 
+    // Normalise whitespace left by the placeholder so the output passes Prettier
+    content = content.replace(/\n{3,}/g, '\n\n').replace(/\s*$/, '\n');
+
     if (IS_DEBUG) {
       console.log(`[DEBUG] Would write ci-cd.yml to ${pipelineDest}`);
     } else {
@@ -326,5 +329,5 @@ module.exports = {
   copyDirectoryRecursive,
   updateRootPackageScripts,
   copyCompositeAction,
-  setupPipelineWorkflow
+  setupPipelineWorkflow,
 };

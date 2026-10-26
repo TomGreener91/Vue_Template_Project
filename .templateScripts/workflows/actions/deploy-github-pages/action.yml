@@ -12,7 +12,7 @@ inputs:
     default: './dist'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: Setup Pages
       uses: actions/configure-pages@v4
