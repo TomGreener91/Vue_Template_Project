@@ -1,2 +1,7 @@
 **/dist
 node_modules
+
+# Scaffold templates whose {{PLACEHOLDER}} tokens sit where an identifier or YAML key must go,
+# so they can't be parsed until setup.cjs substitutes them (removed along with .templateScripts).
+.templateScripts/templates/*/src/index.ts
+.templateScripts/workflows/ci-cd.yml
