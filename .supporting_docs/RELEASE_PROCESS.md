@@ -61,8 +61,9 @@ Every push and pull request executes through continuous integration with strict 
    - **`fail-fast: true`:** If either Node runner fails, the entire matrix cancels immediately.
 2. **Health Check (`health-check`):**
    - **`needs: build-and-test`:** Only starts **after** matrix builds and tests pass completely.
-   - Runs linters (ESLint, Stylelint), TypeScript type-checking, code formatting (Prettier), and dependency audits.
+   - Runs linters (ESLint incl. template a11y rules, Stylelint), TypeScript type-checking, code formatting (Prettier), and dependency audits.
    - Formats a complete markdown health report and calculates an overall grade (A–F).
+   - **Dependency grading:** Vulnerabilities in production dependencies cap the grade (critical → D, which fails the gate; high → C; moderate → B; low → no effect). Dev-only vulnerabilities and outdated packages are reported for visibility but never affect the grade; outdated packages only warn when a major version behind.
    - **On Pull Requests:** Posts or updates a single pinned summary comment on the PR.
    - **On Branch Pushes (`master`/`dev`):** Publishes the report to the GitHub Actions Job Summary.
    - **Release Gate:** Enforces the minimum passing grade (`MIN_PASSING_GRADE`). If the grade drops below the passing threshold, the CI step fails with exit code 1, which blocks semantic versioning and deployment from ever starting.

@@ -1,20 +1,34 @@
 // eslint.config.js (ESM)
-import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
-import pluginVue from 'eslint-plugin-vue'
-import vueParser from 'vue-eslint-parser'         //explicit Vue SFC parser
-import globals from 'globals'
-import prettier from 'eslint-config-prettier'
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import pluginVue from 'eslint-plugin-vue';
+import pluginVueA11y from 'eslint-plugin-vuejs-accessibility';
+import vueParser from 'vue-eslint-parser'; //explicit Vue SFC parser
+import globals from 'globals';
+import prettier from 'eslint-config-prettier';
 
 export default [
   // Ignore build outputs and config file
-  { ignores: ['**/dist/**', 'node_modules/**', '.vite/**', 'coverage/**', 'eslint.config.js', '.templateScripts/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      'node_modules/**',
+      '.vite/**',
+      'coverage/**',
+      'eslint.config.js',
+      '.templateScripts/**',
+    ],
+  },
 
   // Base JS rules
   js.configs.recommended,
 
   // Vue 3 flat preset (must be spread)
   ...pluginVue.configs['flat/recommended'],
+
+  // Template-level a11y checks (alt text, labels, keyboard handlers). Static only -
+  // contrast, focus order and rendered ARIA still need a live audit.
+  ...pluginVueA11y.configs['flat/recommended'],
 
   // @typescript-eslint recommended rules that require type info
   ...tseslint.configs.recommendedTypeChecked,
@@ -23,23 +37,33 @@ export default [
   {
     rules: {
       'vue/no-v-html': 'off',
-      'vue/block-order': ['error', {
-        'order': ['template', 'script', 'style']
-      }],
+      'vue/block-order': [
+        'error',
+        {
+          order: ['template', 'script', 'style'],
+        },
+      ],
       'vue/component-api-style': ['error', ['script-setup', 'composition']],
-      'vue/define-macros-order': ['error', {
-        'order': ['defineProps', 'defineEmits']
-      }],
-      'vue/component-name-in-template-casing': ['error', 'PascalCase', {
-        'registeredComponentsOnly': false,
-        'ignores': []
-      }],
+      'vue/define-macros-order': [
+        'error',
+        {
+          order: ['defineProps', 'defineEmits'],
+        },
+      ],
+      'vue/component-name-in-template-casing': [
+        'error',
+        'PascalCase',
+        {
+          registeredComponentsOnly: false,
+          ignores: [],
+        },
+      ],
       'vue/no-restricted-class': [
         'warn',
         '/^(m|p)[lr](-[a-z0-9]+)?$/',
         '/^text-(left|right)$/',
         '/^(border|rounded)-[lr](-[a-z0-9]+)?$/',
-        '/^(left|right)-/'
+        '/^(left|right)-/',
       ],
       '@typescript-eslint/no-unused-vars': [
         'error',

@@ -76,6 +76,8 @@ npm run build
 
 ### Lint with [ESLint](https://eslint.org/)
 
+Includes template-level accessibility rules from [eslint-plugin-vuejs-accessibility](https://github.com/vue-a11y/eslint-plugin-vuejs-accessibility) (alt text, form labels, keyboard handlers). These are static checks on the template source, not a substitute for auditing the rendered site.
+
 ```sh
-npm run lint
+npm run lint:eslint
 ```
