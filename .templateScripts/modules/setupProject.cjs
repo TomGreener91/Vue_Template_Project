@@ -50,7 +50,7 @@ async function setupProject() {
       url: \${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: v\${{ needs.release.outputs.new_release_version }}
 
@@ -69,7 +69,7 @@ async function setupProject() {
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup & Build
         uses: ./.github/actions/setup-node-build
@@ -89,7 +89,7 @@ async function setupProject() {
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: v\${{ needs.release.outputs.new_release_version }}
 
@@ -112,7 +112,7 @@ async function setupProject() {
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: true
 
@@ -133,7 +133,7 @@ async function setupProject() {
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: v\${{ needs.release.outputs.new_release_version }}
           submodules: true

@@ -2,6 +2,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import pluginVue from 'eslint-plugin-vue';
+import pluginVueA11y from 'eslint-plugin-vuejs-accessibility';
 import vueParser from 'vue-eslint-parser'; //explicit Vue SFC parser
 import globals from 'globals';
 import prettier from 'eslint-config-prettier';
@@ -24,6 +25,10 @@ export default [
 
   // Vue 3 flat preset (must be spread)
   ...pluginVue.configs['flat/recommended'],
+
+  // Template-level a11y checks (alt text, labels, keyboard handlers). Static only -
+  // contrast, focus order and rendered ARIA still need a live audit.
+  ...pluginVueA11y.configs['flat/recommended'],
 
   // @typescript-eslint recommended rules that require type info
   ...tseslint.configs.recommendedTypeChecked,

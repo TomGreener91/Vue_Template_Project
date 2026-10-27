@@ -30,4 +30,6 @@ runs:
         repoToken: '${{ github.token }}'
         firebaseServiceAccount: '${{ inputs.firebase-service-account }}'
         channelId: ${{ steps.deploy_env.outputs.channel_id }}
+        # Staging stays up between dev pushes (30d is Firebase's maximum); PR previews keep 7d.
+        expires: ${{ steps.deploy_env.outputs.channel_id == 'staging' && '30d' || '7d' }}
         projectId: '${{ inputs.project-id }}'

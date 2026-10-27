@@ -57,9 +57,16 @@ const runCommand = (command) => {
 // parsed as clean JSON instead of scraped from decorated CLI text.
 const execCapture = (command, args) =>
   new Promise((resolve) => {
-    execFile(command, args, { cwd: rootDir, maxBuffer: MAX_BUFFER }, (error, stdout, stderr) => {
-      resolve({ success: !error, stdout: stdout ?? '', stderr: stderr ?? '', error });
-    });
+    // Windows can only run .cmd shims (node_modules/.bin, npm) through a shell.
+    const shell = process.platform === 'win32';
+    execFile(
+      shell ? `"${command}"` : command,
+      args,
+      { cwd: rootDir, maxBuffer: MAX_BUFFER, shell },
+      (error, stdout, stderr) => {
+        resolve({ success: !error, stdout: stdout ?? '', stderr: stderr ?? '', error });
+      },
+    );
   });
 
 const renderBar = (value, max, width = 20) => {
@@ -318,13 +325,33 @@ const checkTypeCheck = async () => {
 
 const SEVERITY_RANK = { critical: 4, high: 3, moderate: 2, low: 1, info: 0 };
 
-/** Scans dependencies for known security vulnerabilities via `npm audit --json`, ranked by severity. */
-const checkNpmAudit = async () => {
-  const { stdout } = await execCapture('npm', ['audit', '--json']);
-  let report;
+const runNpmAuditJson = async (extraArgs = []) => {
+  const { stdout } = await execCapture('npm', ['audit', '--json', ...extraArgs]);
   try {
-    report = JSON.parse(stdout);
+    return JSON.parse(stdout);
   } catch {
+    return null;
+  }
+};
+
+const countSeverities = (vulnerabilities) => {
+  const counts = { critical: 0, high: 0, moderate: 0, low: 0, info: 0 };
+  vulnerabilities.forEach((v) => {
+    if (v.severity in counts) counts[v.severity] += 1;
+  });
+  return counts;
+};
+
+/**
+ * Scans dependencies for known vulnerabilities, split into production (ships in the build,
+ * affects the grade) and dev-only (build tooling - reported for visibility, never graded).
+ */
+const checkNpmAudit = async () => {
+  const [fullReport, prodReport] = await Promise.all([
+    runNpmAuditJson(),
+    runNpmAuditJson(['--omit=dev']),
+  ]);
+  if (!fullReport || !prodReport) {
     return {
       success: true,
       count: 0,
@@ -335,32 +362,55 @@ const checkNpmAudit = async () => {
     };
   }
 
-  const bySeverity = report.metadata?.vulnerabilities ?? {};
-  const criticalOrHigh = (bySeverity.critical ?? 0) + (bySeverity.high ?? 0);
-  const moderateOrLow = (bySeverity.moderate ?? 0) + (bySeverity.low ?? 0);
+  const prodNames = new Set(Object.keys(prodReport.vulnerabilities ?? {}));
+  const all = Object.values(fullReport.vulnerabilities ?? {});
+  const prod = all.filter((v) => prodNames.has(v.name));
+  const dev = all.filter((v) => !prodNames.has(v.name));
 
-  const issues = Object.values(report.vulnerabilities ?? {})
-    .sort((a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0))
-    .map((v) => {
-      const advisory = v.via.find((entry) => typeof entry === 'object');
-      return {
-        file: v.name,
-        rule: v.severity,
-        message: advisory ? advisory.title : `Vulnerable dependency (${v.severity})`,
-      };
-    });
+  const prodSeverity = countSeverities(prod);
+  const devSeverity = countSeverities(dev);
+  const prodCriticalOrHigh = prodSeverity.critical + prodSeverity.high;
+
+  const toIssue = (scope) => (v) => {
+    const advisory = v.via.find((entry) => typeof entry === 'object');
+    return {
+      file: v.name,
+      rule: `${scope} · ${v.severity}`,
+      message: advisory ? advisory.title : `Vulnerable dependency (${v.severity})`,
+    };
+  };
+  const bySeverity = (a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0);
+  const issues = [
+    ...prod.sort(bySeverity).map(toIssue('prod')),
+    ...dev.sort(bySeverity).map(toIssue('dev')),
+  ];
 
   return {
-    success: criticalOrHigh === 0,
-    count: criticalOrHigh + moderateOrLow,
-    errorCount: criticalOrHigh,
-    warningCount: moderateOrLow,
+    success: all.length === 0,
+    count: all.length,
+    errorCount: prodCriticalOrHigh,
+    warningCount: all.length - prodCriticalOrHigh,
     issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
-    severityBreakdown: bySeverity,
+    prodCount: prod.length,
+    devCount: dev.length,
+    prodSeverity,
+    devSeverity,
   };
 };
 
-/** Checks for outdated NPM packages via `npm outdated --json`. */
+// For 0.x packages a minor bump is the breaking change, so treat it as "major".
+const isMajorBehind = (current, latest) => {
+  if (!current || !latest) return true;
+  const [curMajor, curMinor] = current.split('.').map((n) => parseInt(n, 10));
+  const [latMajor, latMinor] = latest.split('.').map((n) => parseInt(n, 10));
+  if (latMajor !== curMajor) return latMajor > curMajor;
+  return curMajor === 0 && latMinor > curMinor;
+};
+
+/**
+ * Lists outdated NPM packages via `npm outdated --json`. Informational only: patch/minor
+ * updates pass, and only a major version behind is surfaced as a warning.
+ */
 const checkNpmOutdated = async () => {
   const { stdout } = await execCapture('npm', ['outdated', '--json']);
   let packages = {};
@@ -372,17 +422,26 @@ const checkNpmOutdated = async () => {
     }
   }
 
-  const entries = Object.entries(packages);
-  const issues = entries.map(([name, info]) => ({
-    file: name,
-    message: `${info.current ?? 'missing'} → latest ${info.latest}`,
+  const entries = Object.entries(packages).map(([name, info]) => ({
+    name,
+    info,
+    major: isMajorBehind(info.current, info.latest),
   }));
+  const majorCount = entries.filter((e) => e.major).length;
+  const issues = [...entries]
+    .sort((a, b) => Number(b.major) - Number(a.major))
+    .map(({ name, info, major }) => ({
+      file: name,
+      rule: major ? 'major' : 'minor/patch',
+      message: `${info.current ?? 'missing'} → latest ${info.latest}`,
+    }));
 
   return {
-    success: entries.length === 0,
+    success: majorCount === 0,
     count: entries.length,
     errorCount: 0,
-    warningCount: entries.length,
+    warningCount: majorCount,
+    majorCount,
     issues: issues.slice(0, MAX_ISSUES_PER_CHECK),
   };
 };
@@ -622,7 +681,7 @@ const checks = [
     name: 'NPM Outdated',
     category: 'Dependencies',
     description: 'Checks for outdated NPM packages in the project.',
-    fixCommand: 'npm update',
+    fixCommand: 'npm run deps:upgrade:interactive',
     allowFail: true,
     run: checkNpmOutdated,
   },
@@ -664,12 +723,31 @@ const badgeMessageForResult = (res) => {
     return res.count === 0 ? 'Clean' : `${res.count} Uncommitted`;
   }
   if (res.name === 'Build & Bundle Size' && !res.success) return 'Build Failed';
+  if (res.name === 'NPM Audit' && res.count > 0) {
+    return `${res.prodCount} Prod / ${res.devCount} Dev`;
+  }
+  if (res.name === 'NPM Outdated' && res.count > 0) {
+    return res.majorCount > 0
+      ? `${res.count} Updates (${res.majorCount} Major)`
+      : `${res.count} Updates`;
+  }
   return res.count === 0 ? 'Passing' : `${res.count} Issue${res.count === 1 ? '' : 's'}`;
 };
 
 const badgeColorForResult = (res) => {
   if (res.name === 'Build & Bundle Size' && !res.success) return 'red';
   if (res.name === 'Environment & Runtime') return res.success ? 'brightgreen' : 'red';
+  if (res.name === 'NPM Audit' && res.prodSeverity) {
+    const { critical, high, moderate } = res.prodSeverity;
+    if (critical + high > 0) return 'red';
+    if (moderate > 0) return 'orange';
+    return res.count > 0 ? 'yellow' : 'brightgreen';
+  }
+  // Outdated packages are informational - never red, yellow only for a major version behind.
+  if (res.name === 'NPM Outdated') {
+    if (res.count === 0) return 'brightgreen';
+    return res.majorCount > 0 ? 'yellow' : 'blue';
+  }
   return badgeColorForCount(res.count);
 };
 
@@ -681,8 +759,9 @@ const buildResultBadge = (res) =>
 
 // A-F grade summarizing only the blocking (allowFail: false) checks, since advisory
 // checks (audit/outdated/conventions/dependency usage/git) are tracked in their own
-// rows but shouldn't by themselves tank the headline grade - except a critical/high
-// vulnerability still caps it, since "clean lint, exploitable dependency" isn't an A.
+// rows but shouldn't by themselves tank the headline grade - except a vulnerability in a
+// production dependency still caps it, since "clean lint, exploitable dependency" isn't
+// an A. Dev-only vulnerabilities never ship, so they're reported but never graded.
 const GRADE_ICON = { A: '🟢', B: '🟢', C: '🟡', D: '🟠', F: '🔴' };
 const GRADE_BADGE_COLOR = {
   A: 'brightgreen',
@@ -703,8 +782,8 @@ const computeGrade = (results) => {
   const buildFailed = results.some((r) => r.name === 'Build & Bundle Size' && !r.success);
 
   const auditResult = results.find((r) => r.name === 'NPM Audit');
-  const criticalOrHigh =
-    (auditResult?.severityBreakdown?.critical ?? 0) + (auditResult?.severityBreakdown?.high ?? 0);
+  const prodSeverity = auditResult?.prodSeverity ?? {};
+  const criticalOrHigh = (prodSeverity.critical ?? 0) + (prodSeverity.high ?? 0);
 
   let grade;
   if (buildFailed) grade = 'F';
@@ -714,9 +793,22 @@ const computeGrade = (results) => {
   else if (blockingErrors <= 20) grade = 'D';
   else grade = 'F';
 
-  if (criticalOrHigh > 0 && (grade === 'A' || grade === 'B')) grade = 'C';
+  // Production vulnerability caps: critical fails the gate, high/moderate cap below A.
+  let cap = null;
+  if (prodSeverity.critical > 0) cap = 'D';
+  else if (prodSeverity.high > 0) cap = 'C';
+  else if (prodSeverity.moderate > 0) cap = 'B';
+  if (cap && GRADE_RANK[grade] < GRADE_RANK[cap]) grade = cap;
 
-  return { grade, blockingErrors, blockingWarnings, criticalOrHigh, buildFailed };
+  return {
+    grade,
+    blockingErrors,
+    blockingWarnings,
+    criticalOrHigh,
+    prodVulnerabilities: auditResult?.prodCount ?? 0,
+    devVulnerabilities: auditResult?.devCount ?? 0,
+    buildFailed,
+  };
 };
 
 const groupByCategory = (results) => {
@@ -757,9 +849,9 @@ const generateMarkdown = (results, grade) => {
   md += `*Generated on: ${date}*\n\n`;
   md += `## ${GRADE_ICON[grade.grade]} Overall Grade: ${grade.grade}\n\n`;
   md += `${buildBadge('Project Health', `Grade ${grade.grade}`, GRADE_BADGE_COLOR[grade.grade])}\n\n`;
-  md += `| Blocking Errors | Blocking Warnings | Critical/High Vulnerabilities |\n`;
-  md += `| :---: | :---: | :---: |\n`;
-  md += `| ${grade.blockingErrors} | ${grade.blockingWarnings} | ${grade.criticalOrHigh} |\n\n`;
+  md += `| Blocking Errors | Blocking Warnings | Prod Critical/High Vulns | Prod Vulns | Dev-only Vulns |\n`;
+  md += `| :---: | :---: | :---: | :---: | :---: |\n`;
+  md += `| ${grade.blockingErrors} | ${grade.blockingWarnings} | ${grade.criticalOrHigh} | ${grade.prodVulnerabilities} | ${grade.devVulnerabilities} |\n\n`;
 
   if (isBoilerplateMode) {
     md += `> ⚠️ **Boilerplate Mode Detected** — \`.templateScripts/\` is still present, so this project hasn't been scaffolded yet. `;
@@ -801,11 +893,15 @@ const generateMarkdown = (results, grade) => {
         md += `> *(Note: This command may not be able to automatically fix all errors. Manual intervention may still be required).* \n\n`;
       }
 
-      if (res.name === 'NPM Audit' && res.severityBreakdown) {
-        const parts = Object.entries(res.severityBreakdown)
-          .filter(([severity, severityCount]) => severity !== 'total' && severityCount > 0)
-          .map(([severity, severityCount]) => `**${severity}**: ${severityCount}`);
-        md += `Vulnerabilities by severity: ${parts.length ? parts.join(', ') : 'none'}\n\n`;
+      if (res.name === 'NPM Audit' && res.prodSeverity) {
+        const formatSeverity = (counts) => {
+          const parts = Object.entries(counts)
+            .filter(([, severityCount]) => severityCount > 0)
+            .map(([severity, severityCount]) => `**${severity}**: ${severityCount}`);
+          return parts.length ? parts.join(', ') : 'none';
+        };
+        md += `- Production (affects grade): ${formatSeverity(res.prodSeverity)}\n`;
+        md += `- Dev-only (not shipped, not graded): ${formatSeverity(res.devSeverity)}\n\n`;
       }
 
       if (res.issues) {
@@ -867,6 +963,8 @@ const main = async () => {
     blockingErrors: grade.blockingErrors,
     blockingWarnings: grade.blockingWarnings,
     criticalOrHighVulnerabilities: grade.criticalOrHigh,
+    prodVulnerabilities: grade.prodVulnerabilities,
+    devVulnerabilities: grade.devVulnerabilities,
     checks: results.map((r) => ({
       name: r.name,
       category: r.category,

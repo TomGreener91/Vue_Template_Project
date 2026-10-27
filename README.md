@@ -78,6 +78,8 @@ npm run build
 
 ### Lint, format and type-check
 
+Includes template-level accessibility rules from [eslint-plugin-vuejs-accessibility](https://github.com/vue-a11y/eslint-plugin-vuejs-accessibility) (alt text, form labels, keyboard handlers). These are static checks on the template source, not a substitute for auditing the rendered site.
+
 ```sh
 npm run lint      # ESLint + Stylelint + Prettier check + vue-tsc
 npm run lint:fix  # auto-fix ESLint, Stylelint and Prettier issues

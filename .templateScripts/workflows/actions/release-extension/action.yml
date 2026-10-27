@@ -47,7 +47,7 @@ runs:
 
     - name: Upload Artifact to Release
       if: github.event_name != 'pull_request'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: v${{ inputs.version }}
         files: ${{ inputs.artifact-name }}

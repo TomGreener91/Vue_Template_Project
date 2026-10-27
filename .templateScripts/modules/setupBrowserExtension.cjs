@@ -36,7 +36,7 @@ async function setupBrowserExtension() {
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: v\${{ needs.release.outputs.new_release_version }}
 
