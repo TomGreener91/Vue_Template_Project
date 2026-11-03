@@ -83,6 +83,24 @@ const runGitCommand = (args) => {
   }
 };
 
+// First `x.y.z` in a version or `>=x.y.z` range as [major, minor, patch]; null if none.
+const parseVersion = (str) => {
+  const match = String(str).match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  return match ? match.slice(1).map((n) => Number(n ?? 0)) : null;
+};
+
+// Compares the full version against an engines `>=x.y.z` floor - a major-only check would
+// pass Node 22.0-22.12 against `>=22.13.0`.
+const meetsMinimum = (actual, required) => {
+  const have = parseVersion(actual);
+  const need = parseVersion(required);
+  if (!have || !need) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (have[i] !== need[i]) return have[i] > need[i];
+  }
+  return true;
+};
+
 /**
  * Node/npm/OS versions plus boilerplate-vs-scaffolded state, since the latter changes
  * which other findings in this report are expected vs. real problems.
@@ -91,10 +109,8 @@ const checkEnvironment = async () => {
   const lines = [];
   let count = 0;
 
-  const nodeMajor = parseInt(process.version.slice(1), 10);
-  const requiredNode = pkg.engines?.node ?? '>=20.0.0';
-  const requiredNodeMajor = parseInt(requiredNode.replace(/[^\d.]/g, ''), 10);
-  const nodeOk = nodeMajor >= requiredNodeMajor;
+  const requiredNode = pkg.engines?.node ?? '>=22.13.0';
+  const nodeOk = meetsMinimum(process.version, requiredNode);
   if (!nodeOk) count += 1;
   lines.push(
     `Node.js: ${process.version} (requires ${requiredNode}) - ${nodeOk ? 'OK' : 'MISMATCH'}`,
@@ -107,9 +123,7 @@ const checkEnvironment = async () => {
     // npm not resolvable on PATH; leave as 'unknown'
   }
   const requiredNpm = pkg.engines?.npm ?? '>=10.0.0';
-  const requiredNpmMajor = parseInt(requiredNpm.replace(/[^\d.]/g, ''), 10);
-  const npmMajor = parseInt(npmVersion, 10);
-  const npmOk = !Number.isNaN(npmMajor) && npmMajor >= requiredNpmMajor;
+  const npmOk = meetsMinimum(npmVersion, requiredNpm);
   if (!npmOk) count += 1;
   lines.push(`npm: v${npmVersion} (requires ${requiredNpm}) - ${npmOk ? 'OK' : 'MISMATCH'}`);
 
