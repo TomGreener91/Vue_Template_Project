@@ -73,9 +73,9 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.59.4",
+    "unplugin-dts": "^1.1.2",
     "vite": "^8.0.13",
     "vite-plugin-checker": "^0.13.0",
-    "vite-plugin-dts": "^5.0.0",
     "vite-plugin-vue-devtools": "^8.1.2",
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.3.0"

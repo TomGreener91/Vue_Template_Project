@@ -29,7 +29,10 @@
       {
         "assets": [
           "package.json",
-          "plugins/**/package.json",
+          [
+            "plugins/**/package.json",
+            "!**/node_modules/**"
+          ],
           "CHANGELOG.md"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"

@@ -481,7 +481,7 @@ const DEPCHECK_IGNORES = [
   // prettier plugin, referenced by name only in .prettierrc.json
   'prettier-plugin-tailwindcss',
   // only used by the Plugin/Library template variants under .templateScripts/templates
-  'vite-plugin-dts',
+  'unplugin-dts',
 ];
 
 /** Flags dependencies that are declared-but-unused or used-but-undeclared. */
