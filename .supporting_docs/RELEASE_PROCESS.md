@@ -16,7 +16,7 @@ flowchart TD
 
     subgraph Pipeline["Unified CI/CD Pipeline (ci-cd.yml)"]
         subgraph Gatekeeper["1. Quality Gate"]
-            BuildTest["Matrix Build & Tests<br/>(Node 20.x & 22.x)<br/>• fail-fast: true"]
+            BuildTest["Matrix Build & Tests<br/>(Node 22.x, 24.x & 26.x)<br/>• fail-fast: true"]
             HealthCheck["Health Check (health-check)<br/>• Waits for Build & Tests<br/>• Evaluates health grade (A–F)<br/>• Comments report to PR<br/>• Blocks grades below MIN_PASSING_GRADE"]
         end
 
@@ -57,8 +57,8 @@ flowchart TD
 Every push and pull request executes through continuous integration with strict **early-exit fail-fast** mechanisms:
 
 1. **Matrix Build & Tests (`build-and-test`):**
-   - Compiles all workspaces and the root app across supported Node.js versions (20.x, 22.x) and runs unit test suites.
-   - **`fail-fast: true`:** If either Node runner fails, the entire matrix cancels immediately.
+   - Compiles all workspaces and the root app across supported Node.js versions (22.x, 24.x, 26.x) and runs unit test suites.
+   - **`fail-fast: true`:** If any Node runner fails, the entire matrix cancels immediately.
 2. **Health Check (`health-check`):**
    - **`needs: build-and-test`:** Only starts **after** matrix builds and tests pass completely.
    - Runs linters (ESLint incl. template a11y rules, Stylelint), TypeScript type-checking, code formatting (Prettier), and dependency audits.
@@ -67,6 +67,11 @@ Every push and pull request executes through continuous integration with strict 
    - **On Pull Requests:** Posts or updates a single pinned summary comment on the PR.
    - **On Branch Pushes (`master`/`dev`):** Publishes the report to the GitHub Actions Job Summary.
    - **Release Gate:** Enforces the minimum passing grade (`MIN_PASSING_GRADE`). If the grade drops below the passing threshold, the CI step fails with exit code 1, which blocks semantic versioning and deployment from ever starting.
+3. **Node.js versions:**
+   - The `build-and-test` matrix covers every supported Node.js LTS line: 22.x, 24.x and 26.x.
+   - Single-version jobs (`health-check`, `release`, and every deploy/publish job through the `setup-node-build` default) run on **24.x**, matching `.nvmrc`.
+   - `engines.node` in `package.json` is `>=22.13.0`, the lowest Node 22 release every dependency supports.
+   - Node 22 reaches end-of-life on **2027-04-30**. Drop `22.x` from the matrix and raise `engines.node` then.
 
 ---
 

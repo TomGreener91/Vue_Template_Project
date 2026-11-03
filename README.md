@@ -2,6 +2,13 @@
 
 This robust, highly-automated boilerplate supports standard application development, NPM plugin development, Electron app creation, and Browser Extension building. It comes fully equipped with a unified CI/CD pipeline powered by `semantic-release`.
 
+## Requirements
+
+- **Node.js** `>=22.13.0`. Node 24 LTS is recommended and pinned in `.nvmrc` for nvm, fnm and other version managers that read it. CI tests on 22.x, 24.x and 26.x and runs single-version jobs on 24.x.
+- **npm** `>=10.0.0`.
+
+Node 22 reaches end-of-life on 2027-04-30. Drop `22.x` from the CI matrix and raise `engines.node` then (see [`.supporting_docs/RELEASE_PROCESS.md`](.supporting_docs/RELEASE_PROCESS.md)).
+
 ## Setup Script
 
 This project strictly relies on a CLI setup script to intelligently scaffold your architecture, build your GitHub Actions, and dynamically wire up your workspace.

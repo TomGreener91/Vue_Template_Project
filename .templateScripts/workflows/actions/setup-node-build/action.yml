@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: 'Node.js version to use'
     required: false
-    default: '22.x'
+    default: '24.x'
   build-command:
     description: 'Command to build the project'
     required: false
