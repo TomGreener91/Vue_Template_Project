@@ -100,4 +100,4 @@ npm run health-check  # writes health-report.md; CI blocks grades below C
 
 ## AI agents
 
-Coding conventions for AI assistants live in [`AGENTS.md`](AGENTS.md). `CLAUDE.md` and `GEMINI.md` import it, so Claude Code, Gemini CLI and other `AGENTS.md`-aware tools all read the same rules.
+Coding conventions for AI assistants live in [`AGENTS.md`](AGENTS.md). Codex, Antigravity and other `AGENTS.md`-aware tools read it directly, and `CLAUDE.md` imports it for Claude Code, so every tool reads the same rules. Personal preferences (tone, persona) belong in each developer's global rules, not here.
